@@ -1,14 +1,36 @@
 import asyncio
 import logging
+import json
+import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"
+USERS_FILE = "users.json"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
+
+# --- FOYDALANUVCHILAR BAZASINI BOSHQARISH FUNKSIYALARI ---
+def load_users():
+    if os.path.exists(USERS_FILE):
+        try:
+            with open(USERS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_users(users_data):
+    try:
+        with open(USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(users_data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        logging.error(f"Faylga saqlashda xatolik: {e}")
+
+users_db = load_users()
 
 # To'plangan barcha 55 ta kitob bazasi
 BOOKS = [
@@ -399,7 +421,6 @@ BOOKS = [
     },
 ]
 
-# Obunani tekshirish funksiyasi
 async def check_subscription(user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
@@ -412,6 +433,13 @@ async def check_subscription(user_id: int) -> bool:
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
     user_id = message.from_user.id
+    
+    users_db[str(user_id)] = {
+        "name": message.from_user.full_name,
+        "username": message.from_user.username
+    }
+    save_users(users_db)
+    
     is_subbed = await check_subscription(user_id)
     
     if not is_subbed:
@@ -428,6 +456,11 @@ async def start_handler(message: types.Message):
         await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     else:
         await show_main_menu(message)
+
+@dp.message(Command("stat"))
+async def stat_handler(message: types.Message):
+    total_users = len(users_db)
+    await message.answer(f"📊 <b>Bot foydalanuvchilari statistikasi:</b>\n\nJami obunachilar: <b>{total_users}</b> ta", parse_mode="HTML")
 
 @dp.callback_query(F.data == "check_sub")
 async def process_check_sub(callback: types.CallbackQuery):
@@ -473,6 +506,14 @@ async def send_selected_book(callback: types.CallbackQuery):
 @dp.message(F.text)
 async def search_book_handler(message: types.Message):
     user_id = message.from_user.id
+    
+    if str(user_id) not in users_db:
+        users_db[str(user_id)] = {
+            "name": message.from_user.full_name,
+            "username": message.from_user.username
+        }
+        save_users(users_db)
+
     is_subbed = await check_subscription(user_id)
     if not is_subbed:
         await start_handler(message)
@@ -496,7 +537,10 @@ async def search_book_handler(message: types.Message):
         builder.adjust(1)
         await message.answer(response_text, reply_markup=builder.as_markup(), parse_mode="HTML")
     else:
-        await message.answer("❌ Kechirasiz, bu nomdagi kitob topilmadi.")
+        await message.answer(
+            "❌ Kechirasiz, bu nomdagi kitob topilmadi.\n\n"
+            "Botimiz yaqinda ochilgani tufayli kitoblar qo'shish ustida ishlayapmiz. Uzr! 🙏"
+        )
 
 async def main():
     logging.basicConfig(level=logging.INFO)
@@ -504,4 +548,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
