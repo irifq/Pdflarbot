@@ -11,11 +11,17 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # Kitoblar bazasi
+# Kitoblar bazasi
 BOOKS = [
     {
-        "name": "adabiyot", 
+        "keywords": ["adabiyot", "11-sinf", "adabiyot 11"], 
         "file_id": "BQACAgIAAxkBAAIG4Wr4EB2J8TNihqGA956YRd319vXwAAJyHgAKPDAU1jxCIG0lX1APQQ", 
         "caption": "📖 Adabiyot 11-sinf (PDF)"
+    },
+    {
+        "keywords": ["yangi kitob", "kitob nomi"], # O'zingiz xohlagan kalit so'zni yozasiz
+        "file_id": "BQACAgQAAxkBAAIHBWr4evkjAS1Fkz8H4HzYfch7fmlOAALsHgACKPDAU3VPXoo5QPOFPQQ", 
+        "caption": "📖 Yangi kitob (PDF)"
     },
 ]
 
