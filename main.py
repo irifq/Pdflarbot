@@ -14,7 +14,7 @@ dp = Dispatcher()
 BOOKS = [
     {
         "name": "adabiyot", 
-        "file_id": "BQACAgIAAxkBAAI...", # Shu yerga haqiqiy PDF fayl ID sini yozasiz
+        "file_id": "BQACAgIAAxkBAAIG4Wr4EB2J8TNihqGA956YRd319vXwAAJyHgAKPDAU1jxCIG0lX1APQQ", # Shu yerga haqiqiy PDF fayl ID sini yozasiz
         "caption": "📖 Adabiyot kitobi (PDF)"
     },
 ]
