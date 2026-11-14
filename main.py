@@ -10,12 +10,12 @@ TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Kitoblar bazasi (shu yerga o'z kitoblaringizni qo'shib qo'yasiz)
+# Kitoblar bazasi (Siz tashlagan adabiyot kitobining ID si shu yerga yozildi)
 BOOKS = [
     {
         "name": "adabiyot", 
-        "file_id": "BQACAgIAAxkBAAIG4Wr4EB2J8TNihqGA956YRd319vXwAAJyHgAKPDAU1jxCIG0lX1APQQ", # Shu yerga haqiqiy PDF fayl ID sini yozasiz
-        "caption": "📖 Adabiyot kitobi (PDF)"
+        "file_id": "BQACAgIAAxkBAAIG4Wr4EB2J8TNihqGA956YRd319vXwAAJyHgAKPDAU1jxCIG0lX1APQQ", 
+        "caption": "📖 Adabiyot 11-sinf (PDF)"
     },
 ]
 
@@ -38,7 +38,6 @@ async def process_search_button(callback: types.CallbackQuery):
     await callback.message.answer("Marhamat, izlamoqchi bo'lgan kitobingiz nomini yozib yuboring:", parse_mode="Markdown")
     await callback.answer()
 
-# Botga istalgan PDF faylni tashlasangiz, uning ID sini chiqarib beradi
 @dp.message(F.document)
 async def get_file_id(message: types.Message):
     await message.answer(
@@ -64,11 +63,11 @@ async def search_book_handler(message: types.Message):
             break
             
     if not found:
-        await message.answer("❌ Kechirasiz, bu nomdagi kitob topilmadi. Avval botga PDF tashlab fayl ID oling!")
+        await message.answer("❌ Kechirasiz, bu nomdagi kitob topilmadi.")
 
 async def main():
     logging.basicConfig(level=logging.INFO)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.main(main()) if hasattr(asyncio, 'main') else asyncio.run(main())
+    asyncio.run(main())
