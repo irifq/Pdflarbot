@@ -10,7 +10,7 @@ TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Kitoblar bazasi (Siz tashlagan adabiyot kitobining ID si shu yerga yozildi)
+# Kitoblar bazasi
 BOOKS = [
     {
         "name": "adabiyot", 
