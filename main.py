@@ -55,7 +55,6 @@ async def search_book_handler(message: types.Message):
     
     matched_books = []
     for book in BOOKS:
-        # Xatolik bermaydigan to'g'ri qidiruv sharti
         if any(kw in query for kw in book["keywords"]) or query in book["title"].lower():
             matched_books.append(book)
             
@@ -66,9 +65,9 @@ async def search_book_handler(message: types.Message):
             
         await message.answer(response_text, parse_mode="HTML")
         
+        # PDF faylni to'g'ridan-to'g'ri tashlab berish
         for book in matched_books:
-            await bot.send_document(
-                chat_id=message.chat.id,
+            await message.answer_document(
                 document=book["file_id"],
                 caption=book["caption"]
             )
