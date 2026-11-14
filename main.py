@@ -10,8 +10,14 @@ TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Guruh ID raqami (rasmda ko'rsatilgan ID: 4433974944, guruhlar uchun oldiga -100 qo'shiladi)
-GROUP_CHAT_ID = -1004433974944
+# Kitoblar bazasi (shu yerga o'z kitoblaringizni qo'shib qo'yasiz)
+BOOKS = [
+    {
+        "name": "adabiyot", 
+        "file_id": "BQACAgIAAxkBAAI...", # Shu yerga haqiqiy PDF fayl ID sini yozasiz
+        "caption": "📖 Adabiyot kitobi (PDF)"
+    },
+]
 
 def similar(a, b):
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
@@ -32,38 +38,37 @@ async def process_search_button(callback: types.CallbackQuery):
     await callback.message.answer("Marhamat, izlamoqchi bo'lgan kitobingiz nomini yozib yuboring:", parse_mode="Markdown")
     await callback.answer()
 
+# Botga istalgan PDF faylni tashlasangiz, uning ID sini chiqarib beradi
+@dp.message(F.document)
+async def get_file_id(message: types.Message):
+    await message.answer(
+        f"<b>Fayl qabul qilindi!</b>\n\n"
+        f"Nomi: <code>{message.document.file_name}</code>\n"
+        f"File ID: <code>{message.document.file_id}</code>",
+        parse_mode="HTML"
+    )
+
 @dp.message(F.text)
 async def search_book_handler(message: types.Message):
     query = message.text.lower().strip()
-    await message.answer("🔍 Qidirilmoqda...")
     
     found = False
-    try:
-        # Guruh tarixidan xabarlarni o'qiymiz
-        async for msg in bot.get_chat_history(chat_id=GROUP_CHAT_ID, limit=100):
-            if msg.document and msg.document.file_name:
-                file_name = msg.document.file_name.lower()
-                # Agar to'g'ridan-to'g'ri ichida bo'lsa yoki o'xshashlik 40% dan yuqori bo'lsa
-                if query in file_name or similar(query, file_name) > 0.4:
-                    await bot.send_document(
-                        chat_id=message.chat.id,
-                        document=msg.document.file_id,
-                        caption=f"✅ Mana siz izlagan kitob: <b>{msg.document.file_name}</b>",
-                        parse_mode="HTML"
-                    )
-                    found = True
-                    break
-        
-        if not found:
-            await message.answer("❌ Kechirasiz, bu nomdagi kitob guruhdan topilmadi.")
+    for book in BOOKS:
+        if query in book["name"].lower() or similar(query, book["name"].lower()) > 0.4:
+            await bot.send_document(
+                chat_id=message.chat.id,
+                document=book["file_id"],
+                caption=book["caption"]
+            )
+            found = True
+            break
             
-    except Exception as e:
-        logging.error(f"Xatolik: {e}")
-        await message.answer("⚠️ Qidirishda xatolik yuz berdi. Bot guruhda admin ekanligini va ID to'g'riligini tekshiring.")
+    if not found:
+        await message.answer("❌ Kechirasiz, bu nomdagi kitob topilmadi. Avval botga PDF tashlab fayl ID oling!")
 
 async def main():
     logging.basicConfig(level=logging.INFO)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.main(main()) if hasattr(asyncio, 'main') else asyncio.run(main())
