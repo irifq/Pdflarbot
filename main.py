@@ -18,10 +18,10 @@ BOOKS = [
         "caption": "📖 Adabiyot 11-sinf (PDF)"
     },
     {
-        "title": "Yangi kitob",
-        "keywords": ["yangi", "kitob"], 
+        "title": "Usul ul-Fiqh / Nazm",
+        "keywords": ["nazm", "نظم", "usul", "أصول الفقه", "الفقه", "usulul fiqh"], 
         "file_id": "BQACAgQAAxkBAAIHBWr4evkjAS1Fkz8H4HzYfch7fmlOAALsHgACKPDAU3VPXoo5QPOFPQQ", 
-        "caption": "📖 Yangi kitob (PDF)"
+        "caption": "📖 Usul ul-Fiqh / Nazm (PDF)"
     },
 ]
 
@@ -55,7 +55,8 @@ async def search_book_handler(message: types.Message):
     
     matched_books = []
     for book in BOOKS:
-        if any(kw in query for kw in book["keywords"]) or query in book["title"].lower():
+        # Qidiruvni osonlashtirish: kalit so'zlar ichida bormi yoki sarlavhada qisman qatnashganmi
+        if any(kw in query or query in kw for kw in book["keywords"]) or query in book["title"].lower():
             matched_books.append(book)
             
     if matched_books:
@@ -65,7 +66,7 @@ async def search_book_handler(message: types.Message):
             
         await message.answer(response_text, parse_mode="HTML")
         
-        # PDF faylni to'g'ridan-to'g'ri tashlab berish
+        # Topilgan barcha PDF fayllarni tashlab berish
         for book in matched_books:
             await message.answer_document(
                 document=book["file_id"],
