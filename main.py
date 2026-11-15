@@ -8,7 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"
-ADMIN_USERNAME = "irifq"  # @ belgisiz yoziladi
+ADMIN_USERNAMES = ["irifq", "meyaq"]  # @ belgisiz, kichik harflarda yoziladi
 BOOKS_FILE = "books.json"
 USERS_FILE = "users.json"
 
@@ -440,6 +440,13 @@ def transliterate(text: str) -> str:
         text_lower = text_lower.replace(l, c)
     return text_lower
 
+def generate_keywords(title: str):
+    raw_name = title.lower()
+    words = [w for w in raw_name.replace("—", " ").replace("-", " ").split() if len(w) > 1]
+    cyr_words = [transliterate(w) for w in words]
+    lat_cyr_title = transliterate(raw_name)
+    return list(set([raw_name, lat_cyr_title] + words + cyr_words))
+
 async def check_subscription(user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
@@ -478,6 +485,34 @@ async def stat_handler(message: types.Message):
     total_users = len(users_db)
     total_books = len(books_db)
     await message.answer(f"📊 <b>Statistika:</b>\n\nFoydalanuvchilar: <b>{total_users}</b> ta\nKitoblar bazasi: <b>{total_books}</b> ta", parse_mode="HTML")
+
+@dp.message(Command("rename"))
+async def rename_book_handler(message: types.Message):
+    username = message.from_user.username
+    if not username or username.lower() not in ADMIN_USERNAMES:
+        return
+    
+    parts = message.text.split(maxsplit=2)
+    if len(parts) < 3:
+        await message.answer("⚠️ Xato format! Ishlatish: <code>/rename [ID] [Yangi nom]</code>", parse_mode="HTML")
+        return
+    
+    try:
+        book_id = int(parts[1])
+        new_title = parts[2].strip()
+    except ValueError:
+        await message.answer("⚠️ ID raqam faqat sondan iborat bo'lishi kerak!")
+        return
+    
+    book = next((b for b in books_db if b["id"] == book_id), None)
+    if book:
+        book["title"] = new_title
+        book["keywords"] = generate_keywords(new_title)
+        book["caption"] = f"📖 {new_title} (PDF)"
+        save_json(BOOKS_FILE, books_db)
+        await message.answer(f"✅ <b>{book_id}-ID</b> dagi kitob nomi muvaffaqiyatli o'zgartirildi:\n\n📚 <b>{new_title}</b>", parse_mode="HTML")
+    else:
+        await message.answer(f"❌ {book_id}-ID raqamli kitob topilmadi!")
 
 @dp.callback_query(F.data == "check_sub")
 async def process_check_sub(callback: types.CallbackQuery):
@@ -518,8 +553,8 @@ async def send_selected_book(callback: types.CallbackQuery):
 async def handle_new_pdf(message: types.Message):
     username = message.from_user.username
     
-    if not username or username.lower() != ADMIN_USERNAME.lower():
-        await message.answer("❌ Kechirasiz, bu botga faqat admin kitob qo'shishi mumkin.")
+    if not username or username.lower() not in ADMIN_USERNAMES:
+        await message.answer("❌ Kechirasiz, bu botga faqat adminlar kitob qo'shishi mumkin.")
         return
     
     document = message.document
@@ -528,28 +563,29 @@ async def handle_new_pdf(message: types.Message):
         return
     
     file_id = document.file_id
-    raw_name = document.file_name[:-4].replace("_", " ").replace("-", " ")
+    
+    if message.caption:
+        book_title = message.caption.strip()
+    else:
+        book_title = document.file_name[:-4].replace("_", " ").replace("-", " ")
     
     new_id = max([b["id"] for b in books_db], default=0) + 1
-    
-    words = [w.lower() for w in raw_name.split() if len(w) > 2]
-    cyr_words = [transliterate(w) for w in words]
-    keywords = list(set([raw_name.lower()] + words + cyr_words))
+    keywords = generate_keywords(book_title)
     
     new_book = {
         "id": new_id,
-        "title": raw_name,
+        "title": book_title,
         "keywords": keywords,
         "file_id": file_id,
-        "caption": f"📖 {raw_name} (PDF)"
+        "caption": f"📖 {book_title} (PDF)"
     }
     
     books_db.append(new_book)
     save_json(BOOKS_FILE, books_db)
     
     await message.answer(
-        f"✅ <b>Yangi kitob muvaffaqiyatli bazaga qo'shildi!</b>\n\n"
-        f"📚 Nomi: <b>{raw_name}</b>\n"
+        f"✅ <b>Yangi kitob bazaga qo'shildi!</b>\n\n"
+        f"📚 Nomi: <b>{book_title}</b>\n"
         f"🆔 ID raqami: <b>{new_id}</b>\n"
         f"📂 Jami kitoblar: <b>{len(books_db)} ta</b>",
         parse_mode="HTML"
