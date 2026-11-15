@@ -420,6 +420,13 @@ BOOKS = [
         "file_id": "BQACAgUAAxkBAAIIkmr4qj5TlrELF67Csi3ixjuu9YNiAAIdBQAC7YqxVWnlVs1kZhFaPQQ",
         "caption": "📖 Jannat vasfi (PDF)"
     },
+        {
+        "id": 56,
+        "title": "Avf et Allohim — Kadir Akel",
+        "keywords": ["avf et allohim", "kadir akel", "avf", "аллоҳим", "кадир акел"],
+        "file_id": "BQACAgIAAxkBAAIHkWr4oD89exNJnqoMjjmZ7IfopaX7AAJIOAACnoHwSSTYCq3IFbQ_PQQ",
+        "caption": "📖 Avf et Allohim — Kadir Akel (PDF)"
+    },
 ]
 
 async def check_subscription(user_id: int) -> bool:
