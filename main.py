@@ -202,7 +202,6 @@ async def handle_documents(message: types.Message, state: FSMContext):
     document = message.document
     file_name = document.file_name.lower()
     
-    # Agar books.json fayli tashlansa, bazani to'g'ridan-to'g'ri yangilash
     if file_name == "books.json":
         file_info = await bot.get_file(document.file_id)
         await bot.download(file_info, destination=BOOKS_FILE)
@@ -211,7 +210,6 @@ async def handle_documents(message: types.Message, state: FSMContext):
         await message.answer(f"✅ <b>Baza muvaffaqiyatli yangilandi!</b>\n\nJami kitoblar: <b>{len(books_db)} ta</b>", parse_mode="HTML")
         return
         
-    # PDF kitob tashlansa
     if not file_name.endswith(".pdf"):
         await message.answer("⚠️ Iltimos, faqat PDF formatidagi fayl yoki <code>books.json</code> yuboring!", parse_mode="HTML")
         return
@@ -263,17 +261,18 @@ async def search_book_handler(message: types.Message):
         await start_handler(message)
         return
     
-    query = message.text.lower().strip()
+    raw_query = message.text.strip()
+    query = raw_query.lower()
     matched_books = []
 
-    # Agar admin bo'lsa va raqam yozib qidirsa (masalan: "1", "12"), ID bo'yicha qidiramiz
-    if is_admin and query.isdigit():
-        target_id = int(query)
+    clean_query = query.replace("/id", "").replace("id", "").strip()
+    
+    if is_admin and clean_query.isdigit():
+        target_id = int(clean_query)
         book = next((b for b in books_db if b["id"] == target_id), None)
         if book:
             matched_books = [book]
     else:
-        # Oddiy so'zli qidiruv
         query_cyr = transliterate(query)
         for book in books_db:
             title_lower = book["title"].lower()
@@ -283,18 +282,17 @@ async def search_book_handler(message: types.Message):
                 matched_books.append(book)
     
     if matched_books:
-        response_text = f"🔎 <b>Qidiruv natijalari</b> (Topildi: {len(matched_books)} ta):\n\n"
+        # 🌟 Yangi chiroyli dizayn va emojilar
+        response_text = f"📚 <b>Topilgan kitoblar:</b> <code>{len(matched_books)} ta</code>\n━━━━━━━━━━━━━━━━━━━━━\n\n"
         builder = InlineKeyboardBuilder()
         display_books = matched_books[:30]
         
         for i, book in enumerate(display_books, 1):
             if is_admin:
-                # Adminlar uchun ID raqami ham ko'rinib turadi
-                response_text += f"<b>{i}.</b> 📄 {book['title']} <code>[ID: {book['id']}]</code>\n"
+                response_text += f"<b>{i}.</b> 📖 {book['title']}  <code>[ID: {book['id']}]</code>\n"
                 btn_text = f"📥 #{book['id']} — {book['title'][:25]}"
             else:
-                # Oddiy foydalanuvchilar uchun ID ko'rsatilmaydi, faqat toza nom
-                response_text += f"<b>{i}.</b> 📄 {book['title']}\n"
+                response_text += f"<b>{i}.</b> 📖 {book['title']}\n"
                 btn_text = f"📥 {book['title'][:30]}"
 
             if len(btn_text) > 35:
@@ -309,8 +307,8 @@ async def search_book_handler(message: types.Message):
         await message.answer(response_text, reply_markup=builder.as_markup(), parse_mode="HTML")
     else:
         not_found_text = (
-            "❌ <b>Kechirasiz, bunday kitob topilmadi.</b>\n\n"
-            "Iltimos, nomini to'g'ri yozganingizga e'tibor bering."
+            "🔍 <b>Hech qanday kitob topilmadi</b>\n\n"
+            "<i>Iltimos, qidiruv so'zini o'zgartirib yoki qisqartirib yozib ko'ring.</i>"
         )
         await message.answer(not_found_text, parse_mode="HTML")
 
