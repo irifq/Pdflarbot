@@ -22,6 +22,7 @@ dp = Dispatcher()
 class AdminBookState(StatesGroup):
     waiting_for_caption = State()
 
+# --- XOTIRADA CACHE QILISH (Qotishni oldini olish uchun) ---
 def load_json(filename, default_value):
     if os.path.exists(filename):
         try:
@@ -38,7 +39,9 @@ def save_json(filename, data):
     except Exception as e:
         logging.error(f"Xatolik ({filename}): {e}")
 
+# Ma'lumotlarni bir marta xotiraga yuklab olamiz
 users_db = load_json(USERS_FILE, {})
+books_db = load_json(BOOKS_FILE, [])
 
 def transliterate(text: str) -> str:
     latin = ('sh', 'ch', 'g\'', 'o\'', 'ya', 'yu', 'ye', 'yo', 'a', 'b', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'x', 'y', 'z')
@@ -112,7 +115,6 @@ async def stat_handler(message: types.Message):
     username = message.from_user.username
     if not username or username.lower() not in ADMIN_USERNAMES:
         return
-    books_db = load_json(BOOKS_FILE, [])
     total_users = len(users_db)
     total_books = len(books_db)
     
@@ -141,7 +143,7 @@ async def rename_book_handler(message: types.Message):
         await message.answer("⚠️ ID raqam faqat sondan iborat bo'lishi kerak!")
         return
     
-    books_db = load_json(BOOKS_FILE, [])
+    global books_db
     book = next((b for b in books_db if b["id"] == book_id), None)
     if book:
         book["title"] = new_title
@@ -169,7 +171,7 @@ async def show_main_menu(message: types.Message):
     builder.button(text="🔍 Kitob qidirishni boshlash", callback_data="search_book_prompt")
     text = (
         "<b>✨ Xush kelibsiz!</b>\n\n"
-        "Kerakli kitobni topish uchun uning nomini yoki ID raqamini shu yerga yozib yuboring:"
+        "Kerakli kitobni topish uchun shunchaki nomini yoki ID raqamini yozib yuboring:"
     )
     if isinstance(message, types.CallbackQuery):
         await message.message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
@@ -189,7 +191,6 @@ async def send_selected_book(callback: types.CallbackQuery):
         await callback.answer("❌ Xatolik!", show_alert=True)
         return
 
-    books_db = load_json(BOOKS_FILE, [])
     book = next((b for b in books_db if b["id"] == book_id), None)
     if book:
         await bot.send_document(
@@ -202,7 +203,7 @@ async def send_selected_book(callback: types.CallbackQuery):
     else:
         await callback.answer("❌ Kechirasiz, bu kitob topilmadi.", show_alert=True)
 
-# --- PDF FAYL QABUL QILISH (ADMINLAR UCHUN CAPTION SO'RASH) ---
+# --- PDF FAYL QABUL QILISH ---
 @dp.message(F.document)
 async def handle_documents(message: types.Message, state: FSMContext):
     username = message.from_user.username
@@ -213,6 +214,7 @@ async def handle_documents(message: types.Message, state: FSMContext):
     document = message.document
     file_name = document.file_name.lower()
     
+    global books_db
     if file_name == "books.json":
         file_info = await bot.get_file(document.file_id)
         await bot.download(file_info, destination=BOOKS_FILE)
@@ -224,7 +226,6 @@ async def handle_documents(message: types.Message, state: FSMContext):
         await message.answer("⚠️ Iltimos, faqat PDF formatidagi fayl yoki <code>books.json</code> yuboring!", parse_mode="HTML")
         return
         
-    books_db = load_json(BOOKS_FILE, [])
     existing_book = next((b for b in books_db if b["file_id"] == document.file_id), None)
     if existing_book:
         await message.answer(f"⚠️ <b>Bu PDF allaqachon bazada mavjud!</b>\n\nNomi: {existing_book['title']} (ID: {existing_book['id']})", parse_mode="HTML")
@@ -245,7 +246,7 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
         await state.clear()
         return
 
-    books_db = load_json(BOOKS_FILE, [])
+    global books_db
     if books_db:
         max_id = max([b.get("id", 0) for b in books_db])
         new_id = max_id + 1
@@ -274,14 +275,13 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
     )
     await message.answer(success_text, parse_mode="HTML")
 
-# --- QIDIRUV (ODDIY MATN VA ADMINLAR UCHUN ID) ---
+# --- QIDIRUV (XOTIRADAN JUDA TEZ ISHLAYDI) ---
 @dp.message(F.text)
 async def search_book_handler(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username
     is_admin = username and username.lower() in ADMIN_USERNAMES
 
-    # Foydalanuvchini avtomatik saqlab borish
     if str(user_id) not in users_db:
         users_db[str(user_id)] = {
             "name": message.from_user.full_name,
@@ -293,7 +293,6 @@ async def search_book_handler(message: types.Message):
         await start_handler(message)
         return
     
-    books_db = load_json(BOOKS_FILE, [])
     raw_query = message.text.strip()
     query = raw_query.lower()
     matched_books = []
