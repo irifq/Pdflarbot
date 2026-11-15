@@ -5,6 +5,8 @@ import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 
 TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"  # Obuna tekshirish uchun guruh/kanal
@@ -17,6 +19,9 @@ USERS_FILE = "/app/data/users.json"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
+
+class AdminBookState(StatesGroup):
+    waiting_for_caption = State()
 
 def load_json(filename, default_value):
     if os.path.exists(filename):
@@ -95,7 +100,7 @@ async def backup_handler(message: types.Message):
         if os.path.exists(BOOKS_FILE):
             await message.answer_document(
                 document=types.FSInputFile(BOOKS_FILE),
-                caption="📦 <b>Mana sizning bazangiz (`books.json`)!</b>",
+                caption="📦 <b>Mana sizning bazangiz (`books.json`)!</b>\n\n✨ @Pdflarbot",
                 parse_mode="HTML"
             )
         else:
@@ -115,7 +120,8 @@ async def stat_handler(message: types.Message):
     stat_text = (
         "📊 <b>Bot Statistikasi:</b>\n\n"
         f"👥 Foydalanuvchilar: <b>{total_users}</b> ta\n"
-        f"📚 Kitoblar bazasi: <b>{total_books}</b> ta"
+        f"📚 Kitoblar bazasi: <b>{total_books}</b> ta\n\n"
+        "✨ @Pdflarbot"
     )
     await message.answer(stat_text, parse_mode="HTML")
 
@@ -127,7 +133,7 @@ async def rename_book_handler(message: types.Message):
         return
     parts = message.text.split(maxsplit=2)
     if len(parts) < 3:
-        await message.answer("⚠️ <b>Xato format!</b>\nIshlatish tartibi: <code>/rename [ID] [Yangi nom]</code>", parse_mode="HTML")
+        await message.answer("⚠️ <b>Xato format!</b>\nIshlatish tartibi: <code>/rename [ID] [Yangi nom]</code>\n\n✨ @Pdflarbot", parse_mode="HTML")
         return
     try:
         book_id = int(parts[1])
@@ -140,9 +146,9 @@ async def rename_book_handler(message: types.Message):
     if book:
         book["title"] = new_title
         book["keywords"] = generate_keywords(new_title)
-        book["caption"] = f"📖 {new_title} (PDF)"
+        book["caption"] = f"📖 <b>{new_title}</b>\n\n📚 @Pdflarbot"
         save_json(BOOKS_FILE, books_db)
-        await message.answer(f"✅ <b>{book_id}-ID</b> dagi kitob nomi o'zgartirildi:\n\n📚 <b>{new_title}</b>", parse_mode="HTML")
+        await message.answer(f"✅ <b>{book_id}-ID</b> dagi kitob nomi o'zgartirildi:\n\n📚 <b>{new_title}</b>\n\n✨ @Pdflarbot", parse_mode="HTML")
     else:
         await message.answer(f"❌ {book_id}-ID raqamli kitob topilmadi!")
 
@@ -160,7 +166,8 @@ async def show_main_menu(message: types.Message):
     builder.button(text="🔍 Kitob qidirishni boshlash", callback_data="search_book_prompt")
     text = (
         "<b>✨ Xush kelibsiz!</b>\n\n"
-        "Kerakli kitobni topish uchun uning nomini shu yerga yozib yuboring yoki quyidagi tugmani bosing:"
+        "Kerakli kitobni topish uchun uning nomini shu yerga yozib yuboring yoki quyidagi tugmani bosing:\n\n"
+        "🤖 @Pdflarbot"
     )
     if isinstance(message, types.CallbackQuery):
         await message.message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
@@ -180,17 +187,16 @@ async def send_selected_book(callback: types.CallbackQuery):
         await bot.send_document(
             chat_id=callback.message.chat.id,
             document=book["file_id"],
-            caption=book["caption"]
+            caption=book["caption"],
+            parse_mode="HTML"
         )
         await callback.answer("📂 Kitob yuborildi!")
     else:
         await callback.answer("❌ Kechirasiz, bu kitob topilmadi.", show_alert=True)
 
-# --- PDF FAYLLARNI AVTOMATIK QABUL QILISH (CAPTION'SIZ) ---
+# --- PDF FAYL QABUL QILISH (ADMINLAR UCHUN CAPTION SO'RASH) ---
 @dp.message(F.document)
-async def handle_documents(message: types.Message):
-    global books_db  # Xatolikni keltirib chiqargan qism to'g'irlandi
-    
+async def handle_documents(message: types.Message, state: FSMContext):
     username = message.from_user.username
     if not username or username.lower() not in ADMIN_USERNAMES:
         await message.answer("❌ Kechirasiz, bu botga faqat adminlar fayl yuborishi mumkin.")
@@ -199,49 +205,66 @@ async def handle_documents(message: types.Message):
     document = message.document
     file_name = document.file_name.lower()
     
-    # Agar books.json fayli tashlansa, bazani yangilash
     if file_name == "books.json":
         file_info = await bot.get_file(document.file_id)
         await bot.download(file_info, destination=BOOKS_FILE)
+        global books_db
         books_db = load_json(BOOKS_FILE, [])
-        await message.answer(f"✅ <b>Baza muvaffaqiyatli yangilandi!</b>\n\nJami kitoblar: <b>{len(books_db)} ta</b>", parse_mode="HTML")
+        await message.answer(f"✅ <b>Baza muvaffaqiyatli yangilandi!</b>\n\nJami kitoblar: <b>{len(books_db)} ta</b>\n\n✨ @Pdflarbot", parse_mode="HTML")
         return
         
     if not file_name.endswith(".pdf"):
         await message.answer("⚠️ Iltimos, faqat PDF formatidagi fayl yoki <code>books.json</code> yuboring!", parse_mode="HTML")
         return
         
-    # Takroriy faylni oldini olish
+    # Takroriy faylni tekshirish
     existing_book = next((b for b in books_db if b["file_id"] == document.file_id), None)
     if existing_book:
         await message.answer(f"⚠️ <b>Bu PDF allaqachon bazada mavjud!</b>\n\nNomi: {existing_book['title']} (ID: {existing_book['id']})", parse_mode="HTML")
         return
 
-    # Fayl nomidan kengaytirgichni (.pdf) olib tashlab, toza nom yasaymiz
-    clean_title = document.file_name.rsplit('.', 1)[0].replace("_", " ").replace("-", " ").strip()
+    # Holatni saqlab qo'yamiz va nom (caption) so'raymiz
+    await state.update_data(file_id=document.file_id)
+    await state.set_state(AdminBookState.waiting_for_caption)
+    await message.answer("✍️ <b>Ushbu kitob uchun chiroyli nom (sarlavha) yozib yuboring:</b>", parse_mode="HTML")
+
+@dp.message(AdminBookState.waiting_for_caption, F.text)
+async def save_book_with_caption(message: types.Message, state: FSMContext):
+    book_title = message.text.strip()
+    data = await state.get_data()
+    file_id = data.get("file_id")
     
+    global books_db
     if books_db:
         new_id = max([b.get("id", 0) for b in books_db]) + 1
     else:
         new_id = 1
 
-    keywords = generate_keywords(clean_title)
+    keywords = generate_keywords(book_title)
+    
+    # Sticker va @Pdflarbot qo'shilgan chiroyli caption
+    formatted_caption = f"📖 <b>{book_title}</b>\n\n✨ @Pdflarbot"
+    
     new_book = {
         "id": new_id,
-        "title": clean_title,
+        "title": book_title,
         "keywords": keywords,
-        "file_id": document.file_id,
-        "caption": f"📖 {clean_title} (PDF)"
+        "file_id": file_id,
+        "caption": formatted_caption
     }
     books_db.append(new_book)
     save_json(BOOKS_FILE, books_db)
+    await state.clear()
     
     success_text = (
-        f"✅ <b>Qo'shildi:</b> {clean_title}\n"
-        f"🆔 ID: <b>{new_id}</b> | 📚 Jami: <b>{len(books_db)} ta</b>"
+        "✅ <b>Kitob bazaga qo'shildi!</b>\n\n"
+        f"📚 Nomi: <b>{book_title}</b>\n"
+        f"🆔 ID raqami: <b>{new_id}</b>\n\n"
+        "🎯 @Pdflarbot"
     )
     await message.answer(success_text, parse_mode="HTML")
 
+# --- ODDIY MATNLI QIDIRUV (STATE'DAN TASHQARI) ---
 @dp.message(F.text)
 async def search_book_handler(message: types.Message):
     user_id = message.from_user.id
@@ -301,12 +324,14 @@ async def search_book_handler(message: types.Message):
         if len(matched_books) > 30:
             response_text += f"\n<i>⚠️ Qolgan {len(matched_books) - 30} ta natija ko'rsatilmadi.</i>"
             
+        response_text += "\n\n🎯 @Pdflarbot"
         builder.adjust(1)
         await message.answer(response_text, reply_markup=builder.as_markup(), parse_mode="HTML")
     else:
         not_found_text = (
             "🔍 <b>Hech qanday kitob topilmadi</b>\n\n"
-            "<i>Iltimos, qidiruv so'zini o'zgartirib yoki qisqartirib yozib ko'ring.</i>"
+            "<i>Iltimos, qidiruv so'zini o'zgartirib yoki qisqartirib yozib ko'ring.</i>\n\n"
+            "🤖 @Pdflarbot"
         )
         await message.answer(not_found_text, parse_mode="HTML")
 
