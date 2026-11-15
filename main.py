@@ -33,7 +33,6 @@ def save_json(filename, data):
 
 users_db = load_json(USERS_FILE, {})
 
-# Barcha 56 ta kitobingiz bazasi (Eskilari o'chib ketmasligi va darhol chiqishi uchun)
 INITIAL_BOOKS = [
     {
         "id": 1,
@@ -429,20 +428,15 @@ INITIAL_BOOKS = [
     }
 ]
 
-# BU YER JUDA MUHIM:
-# Kod ishga tushganda avval books.json faylini tekshiradi. 
-# Agar fayl bo'lmasa yoki bo'sh bo'lsa, yuqoridagi 56 ta kitobni avtomatik yozib qo'yadi.
-# Agar books.json da allaqachon kitoblar bo'lsa, ularga tegmasdan o'shalarni o'qiydi!
 def load_books():
     if os.path.exists(BOOKS_FILE):
         try:
             with open(BOOKS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                if data:  # Agar fayl ichida kitoblar bo'lsa, o'shalarni qaytaramiz
+                if data:
                     return data
         except Exception:
             pass
-    # Agar fayl bo'lmasa, boshlang'ich 56 ta kitobni yozib ham qo'yamiz
     save_json(BOOKS_FILE, INITIAL_BOOKS)
     return INITIAL_BOOKS
 
@@ -497,8 +491,13 @@ async def start_handler(message: types.Message):
     else:
         await show_main_menu(message)
 
+# --- STATISTIKA (Faqat adminlar uchun) ---
 @dp.message(Command("stat"))
 async def stat_handler(message: types.Message):
+    username = message.from_user.username
+    if not username or username.lower() not in ADMIN_USERNAMES:
+        return  # Agar admin bo'lmasa, umuman javob bermaydi
+    
     total_users = len(users_db)
     total_books = len(books_db)
     await message.answer(f"📊 <b>Statistika:</b>\n\nFoydalanuvchilar: <b>{total_users}</b> ta\nKitoblar bazasi: <b>{total_books}</b> ta", parse_mode="HTML")
