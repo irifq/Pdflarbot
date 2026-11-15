@@ -9,8 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
-CHANNEL_USERNAME = "@pdflar_muhokama"
-ARCHIVE_CHANNEL = "@pdfbazam"  # Kitoblar zaxira kanali
+CHANNEL_USERNAME = "@pdflar_muhokama"  # Obuna tekshirish uchun guruh/kanal
 ADMIN_USERNAMES = ["irifq", "meyaq"]
 
 # Railway Volume papkasi
@@ -81,14 +80,17 @@ async def start_handler(message: types.Message):
         builder.button(text="📢 Guruhga a'zo bo'lish", url=f"https://t.me/pdflar_muhokama")
         builder.button(text="✅ Obunani tekshirish", callback_data="check_sub")
         builder.adjust(1)
-        text = ("<b>Assalomu alaykum!</b> Botimizdan foydalanish uchun oldin quyidagi guruhimizga a'zo bo'ling:\n\n"
-                f"👉 {CHANNEL_USERNAME}\n\n"
-                "A'zo bo'lgach, <b>«✅ Obunani tekshirish»</b> tugmasini bosing:")
+        text = (
+            "<b>✨ Assalomu alaykum!</b>\n\n"
+            "Botimizdan to'liq foydalanish uchun oldin quyidagi guruhimizga a'zo bo'ling:\n"
+            f"👉 {CHANNEL_USERNAME}\n\n"
+            "A'zo bo'lgach, pastdagi <b>«✅ Obunani tekshirish»</b> tugmasini bosing:"
+        )
         await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     else:
         await show_main_menu(message)
 
-# --- BAZANI YUKLAB OLISH (/backup) ---
+# --- BAZANI YUKLAB OLISH (/backup) - FAQAT ADMIN ---
 @dp.message(Command("backup"))
 async def backup_handler(message: types.Message):
     username = message.from_user.username
@@ -98,7 +100,7 @@ async def backup_handler(message: types.Message):
         if os.path.exists(BOOKS_FILE):
             await message.answer_document(
                 document=types.FSInputFile(BOOKS_FILE),
-                caption="📦 <b>Mana sizning baza (books.json) faylingiz!</b>",
+                caption="📦 <b>Mana sizning bazangiz (`books.json`)!</b>\nXavfsiz saqlab qo'ying.",
                 parse_mode="HTML"
             )
         else:
@@ -106,6 +108,7 @@ async def backup_handler(message: types.Message):
     except Exception as e:
         await message.answer(f"❌ Xatolik yuz berdi: {e}")
 
+# --- STATISTIKA (/stat) - FAQAT ADMIN ---
 @dp.message(Command("stat"))
 async def stat_handler(message: types.Message):
     username = message.from_user.username
@@ -113,8 +116,15 @@ async def stat_handler(message: types.Message):
         return
     total_users = len(users_db)
     total_books = len(books_db)
-    await message.answer(f"📊 <b>Statistika:</b>\n\nFoydalanuvchilar: <b>{total_users}</b> ta\nKitoblar bazasi: <b>{total_books}</b> ta", parse_mode="HTML")
+    
+    stat_text = (
+        "📊 <b>Bot Statistikasi:</b>\n\n"
+        f"👥 Foydalanuvchilar: <b>{total_users}</b> ta\n"
+        f"📚 Kitoblar bazasi: <b>{total_books}</b> ta"
+    )
+    await message.answer(stat_text, parse_mode="HTML")
 
+# --- KITOBLAR NOMINI O'ZGARTIRISH (/rename) - FAQAT ADMIN ---
 @dp.message(Command("rename"))
 async def rename_book_handler(message: types.Message):
     username = message.from_user.username
@@ -122,7 +132,7 @@ async def rename_book_handler(message: types.Message):
         return
     parts = message.text.split(maxsplit=2)
     if len(parts) < 3:
-        await message.answer("⚠️ Xato format! Ishlatish: <code>/rename [ID] [Yangi nom]</code>", parse_mode="HTML")
+        await message.answer("⚠️ <b>Xato format!</b>\nIshlatish tartibi: <code>/rename [ID] [Yangi nom]</code>", parse_mode="HTML")
         return
     try:
         book_id = int(parts[1])
@@ -146,19 +156,25 @@ async def process_check_sub(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     if await check_subscription(user_id):
         await callback.message.delete()
-        await callback.message.answer("Rahmat! Obuna tasdiqlandi. Endi izlamoqchi bo'lgan kitobingiz nomini yozib yuboring:")
+        await show_main_menu(callback.message)
     else:
         await callback.answer("❌ Siz hali guruhga a'zo bo'lmadingiz!", show_alert=True)
 
 async def show_main_menu(message: types.Message):
     builder = InlineKeyboardBuilder()
-    builder.button(text="📚 Kitob qidirish", callback_data="search_book_prompt")
-    text = "<b>Xush kelibsiz! ✨</b>\n\nKitob qidirish uchun quyidagi tugmani bosing yoki to'g'ridan-to'g'ri nomini yozib yuboring:"
-    await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    builder.button(text="🔍 Kitob qidirishni boshlash", callback_data="search_book_prompt")
+    text = (
+        "<b>✨ Xush kelibsiz!</b>\n\n"
+        "Kerakli kitobni topish uchun uning nomini shu yerga yozib yuboring yoki quyidagi tugmani bosing:"
+    )
+    if isinstance(message, types.CallbackQuery):
+        await message.message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    else:
+        await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
 
 @dp.callback_query(F.data == "search_book_prompt")
 async def search_prompt(callback: types.CallbackQuery):
-    await callback.message.answer("Marhamat, izlamoqchi bo'lgan kitobingiz nomini yozib yuboring:")
+    await callback.message.answer("✍️ Marhamat, izlamoqchi bo'lgan kitobingiz nomini yozib yuboring:")
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("get_book_"))
@@ -171,9 +187,9 @@ async def send_selected_book(callback: types.CallbackQuery):
             document=book["file_id"],
             caption=book["caption"]
         )
-        await callback.answer("Kitob yuborildi! 📂")
+        await callback.answer("📂 Kitob yuborildi!")
     else:
-        await callback.answer("Kechirasiz, kitob topilmadi.", show_alert=True)
+        await callback.answer("❌ Kechirasiz, bu kitob topilmadi.", show_alert=True)
 
 # --- HUJJAT YOKI KITOBLAR BAZASINI QABUL QILISH ---
 @dp.message(F.document)
@@ -186,13 +202,13 @@ async def handle_documents(message: types.Message, state: FSMContext):
     document = message.document
     file_name = document.file_name.lower()
     
-    # Agar books.json fayli tashlansa, bazani tiklash
+    # Agar books.json fayli tashlansa, bazani to'g'ridan-to'g'ri yangilash
     if file_name == "books.json":
         file_info = await bot.get_file(document.file_id)
         await bot.download(file_info, destination=BOOKS_FILE)
         global books_db
         books_db = load_json(BOOKS_FILE, [])
-        await message.answer(f"✅ <b>Baza muvaffaqiyatli yuklandi va yangilandi!</b>\n\nJami kitoblar: <b>{len(books_db)} ta</b>", parse_mode="HTML")
+        await message.answer(f"✅ <b>Baza muvaffaqiyatli yangilandi!</b>\n\nJami kitoblar: <b>{len(books_db)} ta</b>", parse_mode="HTML")
         return
         
     # PDF kitob tashlansa
@@ -202,22 +218,13 @@ async def handle_documents(message: types.Message, state: FSMContext):
         
     await state.update_data(file_id=document.file_id)
     await state.set_state(AdminBookState.waiting_for_caption)
-    await message.answer("✍️ <b>Ushbu kitobning nomini (sarlavhasini) yozib yuboring:</b>", parse_mode="HTML")
+    await message.answer("✍️ <b>Ushbu kitob uchun chiroyli nom (sarlavha) yozib yuboring:</b>", parse_mode="HTML")
 
 @dp.message(AdminBookState.waiting_for_caption, F.text)
 async def save_book_with_caption(message: types.Message, state: FSMContext):
     book_title = message.text.strip()
     data = await state.get_data()
     file_id = data.get("file_id")
-    try:
-        sent_msg = await bot.send_document(
-            chat_id=ARCHIVE_CHANNEL,
-            document=file_id,
-            caption=f"📖 {book_title} (PDF)"
-        )
-        file_id = sent_msg.document.file_id
-    except Exception as e:
-        logging.error(f"Kanalga yuborishda xatolik: {e}")
     
     new_id = max([b["id"] for b in books_db], default=0) + 1
     keywords = generate_keywords(book_title)
@@ -231,15 +238,24 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
     books_db.append(new_book)
     save_json(BOOKS_FILE, books_db)
     await state.clear()
-    await message.answer(f"✅ <b>Kitob muvaffaqiyatli saqlandi!</b>\n\n📚 Nomi: <b>{book_title}</b>\n🆔 ID: <b>{new_id}</b>", parse_mode="HTML")
+    
+    success_text = (
+        "✅ <b>Kitob bazaga qo'shildi!</b>\n\n"
+        f"📚 Nomi: <b>{book_title}</b>\n"
+        f"🆔 ID raqami: <b>{new_id}</b>"
+    )
+    await message.answer(success_text, parse_mode="HTML")
 
 @dp.message(F.text)
 async def search_book_handler(message: types.Message):
     user_id = message.from_user.id
+    username = message.from_user.username
+    is_admin = username and username.lower() in ADMIN_USERNAMES
+
     if str(user_id) not in users_db:
         users_db[str(user_id)] = {
             "name": message.from_user.full_name,
-            "username": message.from_user.username
+            "username": username
         }
         save_json(USERS_FILE, users_db)
     
@@ -248,28 +264,55 @@ async def search_book_handler(message: types.Message):
         return
     
     query = message.text.lower().strip()
-    query_cyr = transliterate(query)
     matched_books = []
-    for book in books_db:
-        title_lower = book["title"].lower()
-        title_cyr = transliterate(title_lower)
-        if (query in title_lower or query_cyr in title_cyr or 
-            any(query in kw or query_cyr in transliterate(kw) for kw in book["keywords"])):
-            matched_books.append(book)
+
+    # Agar admin bo'lsa va raqam yozib qidirsa (masalan: "1", "12"), ID bo'yicha qidiramiz
+    if is_admin and query.isdigit():
+        target_id = int(query)
+        book = next((b for b in books_db if b["id"] == target_id), None)
+        if book:
+            matched_books = [book]
+    else:
+        # Oddiy so'zli qidiruv
+        query_cyr = transliterate(query)
+        for book in books_db:
+            title_lower = book["title"].lower()
+            title_cyr = transliterate(title_lower)
+            if (query in title_lower or query_cyr in title_cyr or 
+                any(query in kw or query_cyr in transliterate(kw) for kw in book["keywords"])):
+                matched_books.append(book)
     
     if matched_books:
-        response_text = f"🔍 <b>{len(matched_books)} ta natija topildi:</b>\n\n"
+        response_text = f"🔎 <b>Qidiruv natijalari</b> (Topildi: {len(matched_books)} ta):\n\n"
         builder = InlineKeyboardBuilder()
-        display_books = matched_books[:35]
+        display_books = matched_books[:30]
+        
         for i, book in enumerate(display_books, 1):
-            response_text += f"{i}. 📄 {book['title']} (ID: {book['id']})\n"
-            builder.button(text=f"📥 {book['id']}-kitob: {book['title'][:25]}...", callback_data=f"get_book_{book['id']}")
-        if len(matched_books) > 35:
-            response_text += f"\n<i>⚠️ Qolgan {len(matched_books) - 35} ta natija ko'rsatilmadi.</i>"
+            if is_admin:
+                # Adminlar uchun ID raqami ham ko'rinib turadi
+                response_text += f"<b>{i}.</b> 📄 {book['title']} <code>[ID: {book['id']}]</code>\n"
+                btn_text = f"📥 #{book['id']} — {book['title'][:25]}"
+            else:
+                # Oddiy foydalanuvchilar uchun ID ko'rsatilmaydi, faqat toza nom
+                response_text += f"<b>{i}.</b> 📄 {book['title']}\n"
+                btn_text = f"📥 {book['title'][:30]}"
+
+            if len(btn_text) > 35:
+                btn_text = btn_text[:32] + "..."
+            
+            builder.button(text=btn_text, callback_data=f"get_book_{book['id']}")
+            
+        if len(matched_books) > 30:
+            response_text += f"\n<i>⚠️ Qolgan {len(matched_books) - 30} ta natija ko'rsatilmadi.</i>"
+            
         builder.adjust(1)
         await message.answer(response_text, reply_markup=builder.as_markup(), parse_mode="HTML")
     else:
-        await message.answer("❌ Kechirasiz, bu nomdagi kitob topilmadi.")
+        not_found_text = (
+            "❌ <b>Kechirasiz, bunday kitob topilmadi.</b>\n\n"
+            "Iltimos, nomini to'g'ri yozganingizga e'tibor bering."
+        )
+        await message.answer(not_found_text, parse_mode="HTML")
 
 async def main():
     logging.basicConfig(level=logging.INFO)
