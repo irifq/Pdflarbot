@@ -39,7 +39,6 @@ def save_json(filename, data):
         logging.error(f"Faylga saqlashda xatolik ({filename}): {e}")
 
 users_db = load_json(USERS_FILE, {})
-books_db = load_json(BOOKS_FILE, [])
 
 def transliterate(text: str) -> str:
     latin = ('sh', 'ch', 'g\'', 'o\'', 'ya', 'yu', 'ye', 'yo', 'a', 'b', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'x', 'y', 'z')
@@ -89,20 +88,6 @@ async def start_handler(message: types.Message):
     else:
         await show_main_menu(message)
 
-@dp.message(Command("fix"))
-async def fix_captions_handler(message: types.Message):
-    username = message.from_user.username
-    if not username or username.lower() not in ADMIN_USERNAMES:
-        return
-    global books_db
-    count = 0
-    for book in books_db:
-        title = book.get("title", "Kitob")
-        book["caption"] = f"📖 <b>{title}</b>\n\n📥 Bot: @Pdflarbot"
-        count += 1
-    save_json(BOOKS_FILE, books_db)
-    await message.answer(f"✅ <b>Muvaffaqiyatli!</b>\nBazadagi barcha <b>{count} ta</b> kitobning captioni tozalandi.", parse_mode="HTML")
-
 @dp.message(Command("backup"))
 async def backup_handler(message: types.Message):
     username = message.from_user.username
@@ -124,6 +109,7 @@ async def stat_handler(message: types.Message):
     username = message.from_user.username
     if not username or username.lower() not in ADMIN_USERNAMES:
         return
+    books_db = load_json(BOOKS_FILE, [])
     total_users = len(users_db)
     total_books = len(books_db)
     stat_text = (
@@ -149,6 +135,7 @@ async def rename_book_handler(message: types.Message):
         await message.answer("⚠️ ID raqam faqat sondan iborat bo'lishi kerak!")
         return
     
+    books_db = load_json(BOOKS_FILE, [])
     book = next((b for b in books_db if b["id"] == book_id), None)
     if book:
         book["title"] = new_title
@@ -188,6 +175,7 @@ async def search_prompt(callback: types.CallbackQuery):
 @dp.callback_query(F.data.startswith("get_book_"))
 async def send_selected_book(callback: types.CallbackQuery):
     book_id = int(callback.data.split("_")[2])
+    books_db = load_json(BOOKS_FILE, [])
     book = next((b for b in books_db if b["id"] == book_id), None)
     if book:
         await bot.send_document(
@@ -213,7 +201,6 @@ async def handle_documents(message: types.Message, state: FSMContext):
     if file_name == "books.json":
         file_info = await bot.get_file(document.file_id)
         await bot.download(file_info, destination=BOOKS_FILE)
-        global books_db
         books_db = load_json(BOOKS_FILE, [])
         await message.answer(f"✅ <b>Baza yangilandi!</b> Jami: <b>{len(books_db)} ta</b>", parse_mode="HTML")
         return
@@ -222,7 +209,7 @@ async def handle_documents(message: types.Message, state: FSMContext):
         await message.answer("⚠️ Iltimos, faqat PDF formatidagi fayl yoki <code>books.json</code> yuboring!", parse_mode="HTML")
         return
         
-    # Fayl oldin qo'shilganmi tekshiramiz (file_id bo'yicha)
+    books_db = load_json(BOOKS_FILE, [])
     existing_book = next((b for b in books_db if b["file_id"] == document.file_id), None)
     if existing_book:
         await message.answer(f"⚠️ <b>Bu PDF allaqachon bazada mavjud!</b>\n\nNomi: {existing_book['title']} (ID: {existing_book['id']})", parse_mode="HTML")
@@ -243,8 +230,9 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
         await state.clear()
         return
 
-    global books_db
-    # ID har doim haqiqiy bazadagi oxirgi ID raqamdan 1 taga ko'p qilib aniq hisoblanadi
+    # Har safar to'g'ridan-to'g'ri fayldan o'qiymiz (keshlanishning oldini oladi)
+    books_db = load_json(BOOKS_FILE, [])
+    
     if books_db:
         max_id = max([b.get("id", 0) for b in books_db])
         new_id = max_id + 1
@@ -290,6 +278,7 @@ async def search_book_handler(message: types.Message):
         await start_handler(message)
         return
     
+    books_db = load_json(BOOKS_FILE, [])
     raw_query = message.text.strip()
     query = raw_query.lower()
     matched_books = []
