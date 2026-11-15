@@ -9,10 +9,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
-CHANNEL_USERNAME = "@pdflar_muhokama"  # Obuna tekshirish uchun guruh/kanal
+CHANNEL_USERNAME = "@pdflar_muhokama"
 ADMIN_USERNAMES = ["irifq", "meyaq"]
 
-# Railway Volume papkasi
 os.makedirs("/app/data", exist_ok=True)
 BOOKS_FILE = "/app/data/books.json"
 USERS_FILE = "/app/data/users.json"
@@ -90,25 +89,20 @@ async def start_handler(message: types.Message):
     else:
         await show_main_menu(message)
 
-# --- BAZANI YANGILASH VA IMZO QO'SHISH (/fix) - FAQAT ADMIN ---
 @dp.message(Command("fix"))
 async def fix_captions_handler(message: types.Message):
     username = message.from_user.username
     if not username or username.lower() not in ADMIN_USERNAMES:
         return
-    
     global books_db
     count = 0
     for book in books_db:
         title = book.get("title", "Kitob")
-        # Har bir kitobning caption'iga havolani biriktiramiz
         book["caption"] = f"📖 <b>{title}</b>\n\n📥 Bot: @Pdflarbot"
         count += 1
-    
     save_json(BOOKS_FILE, books_db)
-    await message.answer(f"✅ <b>Muvaffaqiyatli!</b>\nBazadagi barcha <b>{count} ta</b> kitobning tagiga @Pdflarbot havolasi qo'shib chiqildi.", parse_mode="HTML")
+    await message.answer(f"✅ <b>Muvaffaqiyatli!</b>\nBazadagi barcha <b>{count} ta</b> kitobning captioni tozalandi.", parse_mode="HTML")
 
-# --- BAZANI YUKLAB OLISH (/backup) - FAQAT ADMIN ---
 @dp.message(Command("backup"))
 async def backup_handler(message: types.Message):
     username = message.from_user.username
@@ -118,15 +112,13 @@ async def backup_handler(message: types.Message):
         if os.path.exists(BOOKS_FILE):
             await message.answer_document(
                 document=types.FSInputFile(BOOKS_FILE),
-                caption="📦 <b>Mana sizning bazangiz (`books.json`)!</b>",
-                parse_mode="HTML"
+                caption="📦 <b>Mana sizning bazangiz (`books.json`)!</b>"
             )
         else:
             await message.answer("⚠️ Hozircha `books.json` fayli topilmadi.")
     except Exception as e:
         await message.answer(f"❌ Xatolik yuz berdi: {e}")
 
-# --- STATISTIKA (/stat) - FAQAT ADMIN ---
 @dp.message(Command("stat"))
 async def stat_handler(message: types.Message):
     username = message.from_user.username
@@ -134,15 +126,13 @@ async def stat_handler(message: types.Message):
         return
     total_users = len(users_db)
     total_books = len(books_db)
-    
     stat_text = (
         "📊 <b>Bot Statistikasi:</b>\n\n"
         f"👥 Foydalanuvchilar: <b>{total_users}</b> ta\n"
-        f"📚 Kitoblar bazasi: <b>{total_books}</b> ta"
+        f"📚 Kitoblar bazasi: <b>{total_books} ta</b>"
     )
     await message.answer(stat_text, parse_mode="HTML")
 
-# --- KITOBLAR NOMINI O'ZGARTIRISH (/rename) - FAQAT ADMIN ---
 @dp.message(Command("rename"))
 async def rename_book_handler(message: types.Message):
     username = message.from_user.username
@@ -195,7 +185,6 @@ async def search_prompt(callback: types.CallbackQuery):
     await callback.message.answer("✍️ Marhamat, izlamoqchi bo'lgan kitobingiz nomini yozib yuboring:")
     await callback.answer()
 
-# --- KITOBDARNI YUBORISH (FAQAT FAYL TAGIDA @Pdflarbot BO'LADI) ---
 @dp.callback_query(F.data.startswith("get_book_"))
 async def send_selected_book(callback: types.CallbackQuery):
     book_id = int(callback.data.split("_")[2])
@@ -211,7 +200,6 @@ async def send_selected_book(callback: types.CallbackQuery):
     else:
         await callback.answer("❌ Kechirasiz, bu kitob topilmadi.", show_alert=True)
 
-# --- PDF FAYL QABUL QILISH (ADMINLAR UCHUN CAPTION SO'RASH) ---
 @dp.message(F.document)
 async def handle_documents(message: types.Message, state: FSMContext):
     username = message.from_user.username
@@ -227,13 +215,14 @@ async def handle_documents(message: types.Message, state: FSMContext):
         await bot.download(file_info, destination=BOOKS_FILE)
         global books_db
         books_db = load_json(BOOKS_FILE, [])
-        await message.answer(f"✅ <b>Baza muvaffaqiyatli yangilandi!</b>\n\nJami kitoblar: <b>{len(books_db)} ta</b>", parse_mode="HTML")
+        await message.answer(f"✅ <b>Baza yangilandi!</b> Jami: <b>{len(books_db)} ta</b>", parse_mode="HTML")
         return
         
     if not file_name.endswith(".pdf"):
         await message.answer("⚠️ Iltimos, faqat PDF formatidagi fayl yoki <code>books.json</code> yuboring!", parse_mode="HTML")
         return
         
+    # Fayl oldin qo'shilganmi tekshiramiz (file_id bo'yicha)
     existing_book = next((b for b in books_db if b["file_id"] == document.file_id), None)
     if existing_book:
         await message.answer(f"⚠️ <b>Bu PDF allaqachon bazada mavjud!</b>\n\nNomi: {existing_book['title']} (ID: {existing_book['id']})", parse_mode="HTML")
@@ -249,15 +238,20 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
     data = await state.get_data()
     file_id = data.get("file_id")
     
+    if not file_id:
+        await message.answer("⚠️ Xatolik yuz berdi. Iltimos, PDF faylni qaytadan tashlang.")
+        await state.clear()
+        return
+
     global books_db
+    # ID har doim haqiqiy bazadagi oxirgi ID raqamdan 1 taga ko'p qilib aniq hisoblanadi
     if books_db:
-        new_id = max([b.get("id", 0) for b in books_db]) + 1
+        max_id = max([b.get("id", 0) for b in books_db])
+        new_id = max_id + 1
     else:
         new_id = 1
 
     keywords = generate_keywords(book_title)
-    
-    # Har bir yangi qo'shilgan kitobga avtomatik imzo va havola qo'shiladi
     formatted_caption = f"📖 <b>{book_title}</b>\n\n📥 Bot: @Pdflarbot"
     
     new_book = {
@@ -274,11 +268,11 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
     success_text = (
         "✅ <b>Kitob bazaga qo'shildi!</b>\n\n"
         f"📚 Nomi: <b>{book_title}</b>\n"
-        f"🆔 ID raqami: <b>{new_id}</b>"
+        f"🆔 ID raqami: <b>{new_id}</b>\n"
+        f"📊 Jami kitoblar: <b>{len(books_db)} ta</b>"
     )
     await message.answer(success_text, parse_mode="HTML")
 
-# --- QIDIRUV (FAQAT ODDIY XABARLAR UCHUN) ---
 @dp.message(F.text)
 async def search_book_handler(message: types.Message):
     user_id = message.from_user.id
