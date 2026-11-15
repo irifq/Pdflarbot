@@ -5,8 +5,6 @@ import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 
 TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"  # Obuna tekshirish uchun guruh/kanal
@@ -19,9 +17,6 @@ USERS_FILE = "/app/data/users.json"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
-
-class AdminBookState(StatesGroup):
-    waiting_for_caption = State()
 
 def load_json(filename, default_value):
     if os.path.exists(filename):
@@ -191,9 +186,9 @@ async def send_selected_book(callback: types.CallbackQuery):
     else:
         await callback.answer("❌ Kechirasiz, bu kitob topilmadi.", show_alert=True)
 
-# --- HUJJAT YOKI KITOBLAR BAZASINI QABUL QILISH ---
+# --- PDF FAYLLARNI AVTOMATIK QABUL QILISH (CAPTION'SIZ) ---
 @dp.message(F.document)
-async def handle_documents(message: types.Message, state: FSMContext):
+async def handle_documents(message: types.Message):
     username = message.from_user.username
     if not username or username.lower() not in ADMIN_USERNAMES:
         await message.answer("❌ Kechirasiz, bu botga faqat adminlar fayl yuborishi mumkin.")
@@ -202,6 +197,7 @@ async def handle_documents(message: types.Message, state: FSMContext):
     document = message.document
     file_name = document.file_name.lower()
     
+    # Agar books.json fayli tashlansa, bazani yangilash
     if file_name == "books.json":
         file_info = await bot.get_file(document.file_id)
         await bot.download(file_info, destination=BOOKS_FILE)
@@ -214,46 +210,35 @@ async def handle_documents(message: types.Message, state: FSMContext):
         await message.answer("⚠️ Iltimos, faqat PDF formatidagi fayl yoki <code>books.json</code> yuboring!", parse_mode="HTML")
         return
         
-    # Xuddi shu file_id oldin qo'shilganmi tekshiramiz (takrorlanishning oldini olish uchun)
+    # Takroriy faylni oldini olish
     existing_book = next((b for b in books_db if b["file_id"] == document.file_id), None)
     if existing_book:
         await message.answer(f"⚠️ <b>Bu PDF allaqachon bazada mavjud!</b>\n\nNomi: {existing_book['title']} (ID: {existing_book['id']})", parse_mode="HTML")
         return
 
-    await state.update_data(file_id=document.file_id)
-    await state.set_state(AdminBookState.waiting_for_caption)
-    await message.answer("✍️ <b>Ushbu kitob uchun chiroyli nom (sarlavha) yozib yuboring:</b>", parse_mode="HTML")
-
-@dp.message(AdminBookState.waiting_for_caption, F.text)
-async def save_book_with_caption(message: types.Message, state: FSMContext):
-    book_title = message.text.strip()
-    data = await state.get_data()
-    file_id = data.get("file_id")
+    # Fayl nomidan kengaytirgichni (.pdf) olib tashlab, toza nom yasaymiz
+    clean_title = document.file_name.rsplit('.', 1)[0].replace("_", " ").replace("-", " ").strip()
     
     global books_db
-    # ID raqamlarini har doim 1 dan boshlab tartib bilan (1, 2, 3...) qat'iy hisoblaymiz
     if books_db:
         new_id = max([b.get("id", 0) for b in books_db]) + 1
     else:
         new_id = 1
 
-    keywords = generate_keywords(book_title)
+    keywords = generate_keywords(clean_title)
     new_book = {
         "id": new_id,
-        "title": book_title,
+        "title": clean_title,
         "keywords": keywords,
-        "file_id": file_id,
-        "caption": f"📖 {book_title} (PDF)"
+        "file_id": document.file_id,
+        "caption": f"📖 {clean_title} (PDF)"
     }
     books_db.append(new_book)
     save_json(BOOKS_FILE, books_db)
-    await state.clear()
     
     success_text = (
-        "✅ <b>Kitob bazaga qo'shildi!</b>\n\n"
-        f"📚 Nomi: <b>{book_title}</b>\n"
-        f"🆔 ID raqami: <b>{new_id}</b>\n"
-        f"📊 Jami kitoblar: <b>{len(books_db)} ta</b>"
+        f"✅ <b>Qo'shildi:</b> {clean_title}\n"
+        f"🆔 ID: <b>{new_id}</b> | 📚 Jami: <b>{len(books_db)} ta</b>"
     )
     await message.answer(success_text, parse_mode="HTML")
 
