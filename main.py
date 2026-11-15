@@ -189,6 +189,8 @@ async def send_selected_book(callback: types.CallbackQuery):
 # --- PDF FAYLLARNI AVTOMATIK QABUL QILISH (CAPTION'SIZ) ---
 @dp.message(F.document)
 async def handle_documents(message: types.Message):
+    global books_db  # Xatolikni keltirib chiqargan qism to'g'irlandi
+    
     username = message.from_user.username
     if not username or username.lower() not in ADMIN_USERNAMES:
         await message.answer("❌ Kechirasiz, bu botga faqat adminlar fayl yuborishi mumkin.")
@@ -201,7 +203,6 @@ async def handle_documents(message: types.Message):
     if file_name == "books.json":
         file_info = await bot.get_file(document.file_id)
         await bot.download(file_info, destination=BOOKS_FILE)
-        global books_db
         books_db = load_json(BOOKS_FILE, [])
         await message.answer(f"✅ <b>Baza muvaffaqiyatli yangilandi!</b>\n\nJami kitoblar: <b>{len(books_db)} ta</b>", parse_mode="HTML")
         return
@@ -219,7 +220,6 @@ async def handle_documents(message: types.Message):
     # Fayl nomidan kengaytirgichni (.pdf) olib tashlab, toza nom yasaymiz
     clean_title = document.file_name.rsplit('.', 1)[0].replace("_", " ").replace("-", " ").strip()
     
-    global books_db
     if books_db:
         new_id = max([b.get("id", 0) for b in books_db]) + 1
     else:
