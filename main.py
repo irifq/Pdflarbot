@@ -12,8 +12,14 @@ TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"
 ARCHIVE_CHANNEL = "@pdfbazam"  # Kitoblar turgan kanal
 ADMIN_USERNAMES = ["irifq", "meyaq"]
-BOOKS_FILE = "books.json"
-USERS_FILE = "users.json"
+import os
+
+# Papka mavjud bo'lmasa, yaratish
+os.makedirs("/app/data", exist_ok=True)
+
+BOOKS_FILE = "/app/data/books.json"
+USERS_FILE = "/app/data/users.json"
+
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
