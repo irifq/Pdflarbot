@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"
-ARCHIVE_CHANNEL = "@pdfbazam"  # Kitoblar saqlanadigan kanal
+ARCHIVE_CHANNEL = "@pdfbazam"  # Kitoblar turgan kanal
 ADMIN_USERNAMES = ["irifq", "meyaq"]
 BOOKS_FILE = "books.json"
 USERS_FILE = "users.json"
@@ -38,7 +38,7 @@ def save_json(filename, data):
         logging.error(f"Faylga saqlashda xatolik ({filename}): {e}")
 
 users_db = load_json(USERS_FILE, {})
-books_db = load_json(BOOKS_FILE, [])  # Kod ichi toza, faqat fayldan o'qiydi!
+books_db = load_json(BOOKS_FILE, [])
 
 def transliterate(text: str) -> str:
     latin = ('sh', 'ch', 'g\'', 'o\'', 'ya', 'yu', 'ye', 'yo', 'a', 'b', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'x', 'y', 'z')
@@ -89,7 +89,6 @@ async def start_handler(message: types.Message):
     else:
         await show_main_menu(message)
 
-# --- STATISTIKA (Faqat adminlar uchun) ---
 @dp.message(Command("stat"))
 async def stat_handler(message: types.Message):
     username = message.from_user.username
@@ -100,7 +99,55 @@ async def stat_handler(message: types.Message):
     total_books = len(books_db)
     await message.answer(f"📊 <b>Statistika:</b>\n\nFoydalanuvchilar: <b>{total_users}</b> ta\nKitoblar bazasi: <b>{total_books}</b> ta", parse_mode="HTML")
 
-# --- ID ORQALI KITOBNI TOPISH VA YUBORISH (/id 1) ---
+# --- KANALdagi barcha kitoblarni avtomatik o'qib olish (/sync) ---
+@dp.message(Command("sync"))
+async def sync_channel_books(message: types.Message):
+    username = message.from_user.username
+    if not username or username.lower() not in ADMIN_USERNAMES:
+        return
+    
+    msg = await message.answer("🔄 Kanal skaner qilinmoqda, iltimos kuting...")
+    
+    try:
+        global books_db
+        synced_count = 0
+        
+        # Telegram kanaldagi so'nggi xabarlarni o'qib chiqamiz
+        # (Bot kanalga admin bo'lishi va kanal xabarlarini o'qiy olishi kerak)
+        async for history_msg in bot.get_chat_history(chat_id=ARCHIVE_CHANNEL, limit=100):
+            if history_msg.document:
+                file_id = history_msg.document.file_id
+                caption = history_msg.caption
+                
+                if caption:
+                    # Captiondan "📖 " yoki "(PDF)" kabi ortiqcha narsalarni tozalab olamiz
+                    clean_title = caption.replace("📖", "").replace("(PDF)", "").strip()
+                else:
+                    # Agar caption bo'lmasa fayl nomidan olamiz
+                    file_name = history_msg.document.file_name or "Noma'lum kitob"
+                    clean_title = file_name[:-4] if file_name.endswith(".pdf") else file_name
+                    clean_title = clean_title.replace("_", " ").replace("-", " ")
+
+                # Agar bu file_id bazada hali bo'lmasa, qo'shamiz
+                if not any(b["file_id"] == file_id for b in books_db):
+                    new_id = max([b["id"] for b in books_db], default=0) + 1
+                    keywords = generate_keywords(clean_title)
+                    
+                    books_db.append({
+                        "id": new_id,
+                        "title": clean_title,
+                        "keywords": keywords,
+                        "file_id": file_id,
+                        "caption": f"📖 {clean_title} (PDF)"
+                    })
+                    synced_count += 1
+
+        save_json(BOOKS_FILE, books_db)
+        await msg.edit_text(f"✅ <b>Sinxronizatsiya muvaffaqiyatli yakunlandi!</b>\n\nKanal这样做dan <b>{synced_count} ta</b> yangi kitob bazaga qo'shildi.\nJami kitoblar: <b>{len(books_db)} ta</b>", parse_mode="HTML")
+        
+    except Exception as e:
+        await msg.edit_text(f"❌ Xatolik yuz berdi: <code>{e}</code>\n\n<i>Eslatma: Bot @pdfbazam kanalida admin bo'lishi shart!</i>", parse_mode="HTML")
+
 @dp.message(Command("id"))
 async def get_book_by_id_command(message: types.Message):
     parts = message.text.split()
@@ -187,7 +234,6 @@ async def send_selected_book(callback: types.CallbackQuery):
     else:
         await callback.answer("Kechirasiz, kitob topilmadi.", show_alert=True)
 
-# --- ADMIN PDF TASHLAGANDA CAPTION (NOM) SO'RASH JARAYONI ---
 @dp.message(F.document)
 async def handle_new_pdf(message: types.Message, state: FSMContext):
     username = message.from_user.username
