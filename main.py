@@ -52,7 +52,7 @@ def transliterate(text: str) -> str:
 
 def generate_keywords(title: str):
     raw_name = title.lower()
-    words = [w for w in raw_name.replace("—", " ").replace("-", " ").split() if len(w) > 1]
+    words = [w for w in raw_name.replace("—", " ").replace("-", " ").split() if len(w) > 0]
     cyr_words = [transliterate(w) for w in words]
     lat_cyr_title = transliterate(raw_name)
     return list(set([raw_name, lat_cyr_title] + words + cyr_words))
@@ -224,7 +224,11 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
     data = await state.get_data()
     file_id = data.get("file_id")
     
-    new_id = max([b["id"] for b in books_db], default=0) + 1
+    if books_db:
+        new_id = max([b.get("id", 0) for b in books_db]) + 1
+    else:
+        new_id = 1
+
     keywords = generate_keywords(book_title)
     new_book = {
         "id": new_id,
@@ -277,12 +281,13 @@ async def search_book_handler(message: types.Message):
         for book in books_db:
             title_lower = book["title"].lower()
             title_cyr = transliterate(title_lower)
+            # Kengaytirilgan qidiruv: ham to'liq nom, ham kalit so'zlar, ham translit tekshiriladi
             if (query in title_lower or query_cyr in title_cyr or 
-                any(query in kw or query_cyr in transliterate(kw) for kw in book["keywords"])):
-                matched_books.append(book)
+                any(query in kw or query_cyr in transliterate(kw) for kw in book.get("keywords", []))):
+                if book not in matched_books:
+                    matched_books.append(book)
     
     if matched_books:
-        # 🌟 Yangi chiroyli dizayn va emojilar
         response_text = f"📚 <b>Topilgan kitoblar:</b> <code>{len(matched_books)} ta</code>\n━━━━━━━━━━━━━━━━━━━━━\n\n"
         builder = InlineKeyboardBuilder()
         display_books = matched_books[:30]
@@ -314,6 +319,7 @@ async def search_book_handler(message: types.Message):
 
 async def main():
     logging.basicConfig(level=logging.INFO)
+    await bot.get_updates(offset=-1) # Eski pending xabarlarni tozalash uchun
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
