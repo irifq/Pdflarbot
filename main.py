@@ -6,39 +6,39 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-# TODO: @BotFather'dan yangi olgan tokeningizni shu yerga yozasiz
-TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
+TOKEN = "SIZNING_BOT_TOKENINGIZNI_SHU_YERGA_YOZING"
 CHANNEL_USERNAME = "@pdflar_muhokama"
+ADMIN_USERNAME = "irifq"  # @ belgisiz yoziladi
+BOOKS_FILE = "books.json"
 USERS_FILE = "users.json"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# --- FOYDALANUVCHILAR BAZASINI BOSHQARISH ---
-def load_users():
-    if os.path.exists(USERS_FILE):
+def load_json(filename, default_value):
+    if os.path.exists(filename):
         try:
-            with open(USERS_FILE, "r", encoding="utf-8") as f:
+            with open(filename, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
-            return {}
-    return {}
+            return default_value
+    return default_value
 
-def save_users(users_data):
+def save_json(filename, data):
     try:
-        with open(USERS_FILE, "w", encoding="utf-8") as f:
-            json.dump(users_data, f, ensure_ascii=False, indent=4)
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
     except Exception as e:
-        logging.error(f"Faylga saqlashda xatolik: {e}")
+        logging.error(f"Faylga saqlashda xatolik ({filename}): {e}")
 
-users_db = load_users()
+users_db = load_json(USERS_FILE, {})
 
-# Barcha 55 ta kitob bazasi
-BOOKS = [
+# Barcha 56 ta kitobingiz to'liq bazasi
+INITIAL_BOOKS = [
     {
         "id": 1,
         "title": "Men — Fotih Duman, Bas qil ey nafs",
-        "keywords": ["men", "fotih", "duman", "bas qil ey nafs", "bas qil"],
+        "keywords": ["men", "fotih", "duman", "bas qil ey nafs", "bas qil", "мен", "фотих", "думан"],
         "file_id": "BQACAgIAAxkBAAIHcWr4m1KBhT39ctmUykj8iwSok--uAAJ1MgACW214SfbO-jpLSTQ3PQQ",
         "caption": "📖 Men — Fotih Duman, Bas qil ey nafs (PDF)"
     },
@@ -420,14 +420,25 @@ BOOKS = [
         "file_id": "BQACAgUAAxkBAAIIkmr4qj5TlrELF67Csi3ixjuu9YNiAAIdBQAC7YqxVWnlVs1kZhFaPQQ",
         "caption": "📖 Jannat vasfi (PDF)"
     },
-        {
+    {
         "id": 56,
         "title": "Avf et Allohim — Kadir Akel",
-        "keywords": ["avf et allohim", "kadir akel", "avf", "аллоҳим", "кадир акел"],
+        "keywords": ["avf et allohim", "kadir akel", "avf", "аллоҳим", "кадир акел", "авф"],
         "file_id": "BQACAgIAAxkBAAIHkWr4oD89exNJnqoMjjmZ7IfopaX7AAJIOAACnoHwSSTYCq3IFbQ_PQQ",
         "caption": "📖 Avf et Allohim — Kadir Akel (PDF)"
-    },
+    }
 ]
+
+books_db = load_json(BOOKS_FILE, INITIAL_BOOKS)
+
+def transliterate(text: str) -> str:
+    latin = ('sh', 'ch', 'g\'', 'o\'', 'ya', 'yu', 'ye', 'yo', 'a', 'b', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'x', 'y', 'z')
+    cyrillic = ('ш', 'ч', 'ғ', 'ў', 'я', 'ю', 'е', 'ё', 'а', 'б', 'д', 'э', 'ф', 'г', 'ҳ', 'и', 'ж', 'к', 'л', 'м', 'н', 'о', 'п', 'қ', 'р', 'с', 'т', 'у', 'в', 'х', 'й', 'з')
+    
+    text_lower = text.lower()
+    for l, c in zip(latin, cyrillic):
+        text_lower = text_lower.replace(l, c)
+    return text_lower
 
 async def check_subscription(user_id: int) -> bool:
     try:
@@ -441,16 +452,13 @@ async def check_subscription(user_id: int) -> bool:
 @dp.message(Command("start"))
 async def start_handler(message: types.Message):
     user_id = message.from_user.id
-    
     users_db[str(user_id)] = {
         "name": message.from_user.full_name,
         "username": message.from_user.username
     }
-    save_users(users_db)
+    save_json(USERS_FILE, users_db)
     
-    is_subbed = await check_subscription(user_id)
-    
-    if not is_subbed:
+    if not await check_subscription(user_id):
         builder = InlineKeyboardBuilder()
         builder.button(text="📢 Guruhga a'zo bo'lish", url=f"https://t.me/pdflar_muhokama")
         builder.button(text="✅ Obunani tekshirish", callback_data="check_sub")
@@ -468,14 +476,13 @@ async def start_handler(message: types.Message):
 @dp.message(Command("stat"))
 async def stat_handler(message: types.Message):
     total_users = len(users_db)
-    await message.answer(f"📊 <b>Bot foydalanuvchilari statistikasi:</b>\n\nJami obunachilar: <b>{total_users}</b> ta", parse_mode="HTML")
+    total_books = len(books_db)
+    await message.answer(f"📊 <b>Statistika:</b>\n\nFoydalanuvchilar: <b>{total_users}</b> ta\nKitoblar bazasi: <b>{total_books}</b> ta", parse_mode="HTML")
 
 @dp.callback_query(F.data == "check_sub")
 async def process_check_sub(callback: types.CallbackQuery):
     user_id = callback.from_user.id
-    is_subbed = await check_subscription(user_id)
-    
-    if is_subbed:
+    if await check_subscription(user_id):
         await callback.message.delete()
         await callback.message.answer("Rahmat! Obuna tasdiqlandi. Endi izlamoqchi bo'lgan kitobingiz nomini yozib yuboring:")
     else:
@@ -484,11 +491,7 @@ async def process_check_sub(callback: types.CallbackQuery):
 async def show_main_menu(message: types.Message):
     builder = InlineKeyboardBuilder()
     builder.button(text="📚 Kitob qidirish", callback_data="search_book_prompt")
-    
-    text = (
-        "<b>Xush kelibsiz! ✨</b>\n\n"
-        "Kitob qidirish uchun quyidagi tugmani bosing yoki to'g'ridan-to'g'ri kitob nomini yozib yuboring:"
-    )
+    text = "<b>Xush kelibsiz! ✨</b>\n\nKitob qidirish uchun quyidagi tugmani bosing yoki to'g'ridan-to'g'ri nomini yozib yuboring:"
     await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
 
 @dp.callback_query(F.data == "search_book_prompt")
@@ -499,7 +502,7 @@ async def search_prompt(callback: types.CallbackQuery):
 @dp.callback_query(F.data.startswith("get_book_"))
 async def send_selected_book(callback: types.CallbackQuery):
     book_id = int(callback.data.split("_")[2])
-    book = next((b for b in BOOKS if b["id"] == book_id), None)
+    book = next((b for b in books_db if b["id"] == book_id), None)
     
     if book:
         await bot.send_document(
@@ -511,6 +514,47 @@ async def send_selected_book(callback: types.CallbackQuery):
     else:
         await callback.answer("Kechirasiz, kitob topilmadi.", show_alert=True)
 
+@dp.message(F.document)
+async def handle_new_pdf(message: types.Message):
+    username = message.from_user.username
+    
+    if not username or username.lower() != ADMIN_USERNAME.lower():
+        await message.answer("❌ Kechirasiz, bu botga faqat admin kitob qo'shishi mumkin.")
+        return
+    
+    document = message.document
+    if not document.file_name.lower().endswith(".pdf"):
+        await message.answer("⚠️ Iltimos, faqat PDF formatidagi fayl tashlang!")
+        return
+    
+    file_id = document.file_id
+    raw_name = document.file_name[:-4].replace("_", " ").replace("-", " ")
+    
+    new_id = max([b["id"] for b in books_db], default=0) + 1
+    
+    words = [w.lower() for w in raw_name.split() if len(w) > 2]
+    cyr_words = [transliterate(w) for w in words]
+    keywords = list(set([raw_name.lower()] + words + cyr_words))
+    
+    new_book = {
+        "id": new_id,
+        "title": raw_name,
+        "keywords": keywords,
+        "file_id": file_id,
+        "caption": f"📖 {raw_name} (PDF)"
+    }
+    
+    books_db.append(new_book)
+    save_json(BOOKS_FILE, books_db)
+    
+    await message.answer(
+        f"✅ <b>Yangi kitob muvaffaqiyatli bazaga qo'shildi!</b>\n\n"
+        f"📚 Nomi: <b>{raw_name}</b>\n"
+        f"🆔 ID raqami: <b>{new_id}</b>\n"
+        f"📂 Jami kitoblar: <b>{len(books_db)} ta</b>",
+        parse_mode="HTML"
+    )
+
 @dp.message(F.text)
 async def search_book_handler(message: types.Message):
     user_id = message.from_user.id
@@ -520,18 +564,22 @@ async def search_book_handler(message: types.Message):
             "name": message.from_user.full_name,
             "username": message.from_user.username
         }
-        save_users(users_db)
+        save_json(USERS_FILE, users_db)
 
-    is_subbed = await check_subscription(user_id)
-    if not is_subbed:
+    if not await check_subscription(user_id):
         await start_handler(message)
         return
 
     query = message.text.lower().strip()
+    query_cyr = transliterate(query)
     
     matched_books = []
-    for book in BOOKS:
-        if any(kw in query for kw in book["keywords"]) or query in book["title"].lower():
+    for book in books_db:
+        title_lower = book["title"].lower()
+        title_cyr = transliterate(title_lower)
+        
+        if (query in title_lower or query_cyr in title_cyr or 
+            any(query in kw or query_cyr in transliterate(kw) for kw in book["keywords"])):
             matched_books.append(book)
             
     if matched_books:
@@ -547,12 +595,11 @@ async def search_book_handler(message: types.Message):
     else:
         await message.answer(
             "❌ Kechirasiz, bu nomdagi kitob topilmadi.\n\n"
-            "Botimiz yaqinda ochilgani tufayli kitoblar qo'shish ustida ishlayapmiz. Uzr! 🙏"
+            "Iltimos, nomini to'g'ri yozganingizni tekshiring yoki boshqa so'z bilan qidiring."
         )
 
 async def main():
     logging.basicConfig(level=logging.INFO)
-    # Eski webhook bor bo'lsa, uni tozalab tashlaydi va xatolikning oldini oladi
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
