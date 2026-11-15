@@ -39,7 +39,6 @@ def save_json(filename, data):
 
 users_db = load_json(USERS_FILE, {})
 
-# Eski 56 ta kitob bazasi (sync qilish uchun vaqtincha turadi)
 INITIAL_BOOKS = [
     {
         "id": 1,
@@ -498,7 +497,6 @@ async def start_handler(message: types.Message):
     else:
         await show_main_menu(message)
 
-# --- STATISTIKA (Faqat adminlar uchun) ---
 @dp.message(Command("stat"))
 async def stat_handler(message: types.Message):
     username = message.from_user.username
@@ -509,19 +507,18 @@ async def stat_handler(message: types.Message):
     total_books = len(books_db)
     await message.answer(f"📊 <b>Statistika:</b>\n\nFoydalanuvchilar: <b>{total_users}</b> ta\nKitoblar bazasi: <b>{total_books}</b> ta", parse_mode="HTML")
 
-# --- KANALGA HAMMASINI AVTOMATIK ZAXiralash uchun /sync BUYRUQI ---
+# --- KANALGA TO'LIQ VA SEKIN (PAUZA BILAN) ZAXIRALASH ---
 @dp.message(Command("sync"))
 async def sync_books_to_channel(message: types.Message):
     username = message.from_user.username
     if not username or username.lower() not in ADMIN_USERNAMES:
         return
     
-    await message.answer("🔄 Bazadagi barcha kitoblar `@pdfbazam` kanaliga zaxiralanmoqda, kuting...")
+    msg = await message.answer("🔄 Barcha kitoblar `@pdfbazam` kanaliga zaxiralanmoqda (biroz vaqt olishi mumkin)...")
     
     success_count = 0
     for book in books_db:
         try:
-            # Kanalga yuborib, file_id ni yangilab olamiz
             sent = await bot.send_document(
                 chat_id=ARCHIVE_CHANNEL,
                 document=book["file_id"],
@@ -529,12 +526,12 @@ async def sync_books_to_channel(message: types.Message):
             )
             book["file_id"] = sent.document.file_id
             success_count += 1
-            await asyncio.sleep(0.5) # Telegram limitiga tushmaslik uchun kichik tanaffus
+            await asyncio.sleep(1.5) # Telegram limitiga tushmasligi uchun 1.5 sekund pauza
         except Exception as e:
-            logging.error(f"Kitobni zaxiralashda xatolik ({book['title']}): {e}")
+            logging.error(f"Zaxiralashda xatolik ({book['title']}): {e}")
             
     save_json(BOOKS_FILE, books_db)
-    await message.answer(f"✅ <b>Tayyor!</b> Jami <b>{success_count} ta</b> kitob `@pdfbazam` kanaliga muvaffaqiyatli zaxiralandi.")
+    await msg.edit_text(f"✅ <b>Tayyor!</b> Jami <b>{success_count} ta</b> kitob `@pdfbazam` kanaliga muvaffaqiyatli zaxiralandi.")
 
 @dp.message(Command("rename"))
 async def rename_book_handler(message: types.Message):
@@ -599,7 +596,6 @@ async def send_selected_book(callback: types.CallbackQuery):
     else:
         await callback.answer("Kechirasiz, kitob topilmadi.", show_alert=True)
 
-# --- ADMIN PDF TASHLAGANDA CAPTION (NOM) SO'RASH JARAYONI ---
 @dp.message(F.document)
 async def handle_new_pdf(message: types.Message, state: FSMContext):
     username = message.from_user.username
@@ -692,9 +688,15 @@ async def search_book_handler(message: types.Message):
         response_text = f"🔍 <b>{len(matched_books)} ta natija topildi:</b>\n\n"
         builder = InlineKeyboardBuilder()
         
-        for i, book in enumerate(matched_books, 1):
+        # Agar natijalar 35 tadan ko'p bo'lsa, xatolik chiqmasligi uchun faqat birinchi 35 tasini ko'rsatamiz
+        display_books = matched_books[:35]
+        
+        for i, book in enumerate(display_books, 1):
             response_text += f"{i}. 📄 {book['title']}\n"
             builder.button(text=f"📥 {i}-kitobni olish", callback_data=f"get_book_{book['id']}")
+            
+        if len(matched_books) > 35:
+            response_text += f"\n<i>⚠️ Qolgan {len(matched_books) - 35} ta natija ko'rsatilmadi. Aniqroq qidirib ko'ring.</i>"
             
         builder.adjust(1)
         await message.answer(response_text, reply_markup=builder.as_markup(), parse_mode="HTML")
