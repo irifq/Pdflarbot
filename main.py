@@ -544,7 +544,6 @@ async def search_book_handler(message: types.Message):
 
 async def main():
     logging.basicConfig(level=logging.INFO)
+    # Eski webhook'ni tozalash uchun shu qatorni qo'shamiz:
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
