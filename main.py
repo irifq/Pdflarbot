@@ -150,7 +150,10 @@ async def rename_book_handler(message: types.Message):
 async def process_check_sub(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     if await check_subscription(user_id):
-        await callback.message.delete()
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
         await show_main_menu(callback.message)
     else:
         await callback.answer("❌ Siz hali guruhga a'zo bo'lmadingiz!", show_alert=True)
@@ -174,17 +177,25 @@ async def search_prompt(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data.startswith("get_book_"))
 async def send_selected_book(callback: types.CallbackQuery):
-    book_id = int(callback.data.split("_")[2])
+    try:
+        book_id = int(callback.data.split("_")[2])
+    except (IndexError, ValueError):
+        await callback.answer("❌ Xatolik yuz berdi.", show_alert=True)
+        return
+
     books_db = load_json(BOOKS_FILE, [])
     book = next((b for b in books_db if b["id"] == book_id), None)
     if book:
-        await bot.send_document(
-            chat_id=callback.message.chat.id,
-            document=book["file_id"],
-            caption=book.get("caption", f"📖 {book['title']}\n\n📥 Bot: @Pdflarbot"),
-            parse_mode="HTML"
-        )
-        await callback.answer("📂 Kitob yuborildi!")
+        try:
+            await bot.send_document(
+                chat_id=callback.message.chat.id,
+                document=book["file_id"],
+                caption=book.get("caption", f"📖 {book['title']}\n\n📥 Bot: @Pdflarbot"),
+                parse_mode="HTML"
+            )
+            await callback.answer("📂 Kitob yuborildi!")
+        except Exception as e:
+            await callback.answer("❌ Kitobni yuborishda xatolik yuz berdi.", show_alert=True)
     else:
         await callback.answer("❌ Kechirasiz, bu kitob topilmadi.", show_alert=True)
 
@@ -230,7 +241,6 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
         await state.clear()
         return
 
-    # Har safar to'g'ridan-to'g'ri fayldan o'qiymiz (keshlanishning oldini oladi)
     books_db = load_json(BOOKS_FILE, [])
     
     if books_db:
@@ -322,13 +332,19 @@ async def search_book_handler(message: types.Message):
             response_text += f"\n<i>⚠️ Qolgan {len(matched_books) - 30} ta natija ko'rsatilmadi.</i>"
             
         builder.adjust(1)
-        await message.answer(response_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        try:
+            await message.answer(response_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        except Exception:
+            pass
     else:
         not_found_text = (
             "🔍 <b>Hech qanday kitob topilmadi</b>\n\n"
             "<i>Iltimos, qidiruv so'zini o'zgartirib yoki qisqartirib yozib ko'ring.</i>"
         )
-        await message.answer(not_found_text, parse_mode="HTML")
+        try:
+            await message.answer(not_found_text, parse_mode="HTML")
+        except Exception:
+            pass
 
 async def main():
     logging.basicConfig(level=logging.INFO)
