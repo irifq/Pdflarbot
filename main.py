@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"
-ARCHIVE_CHANNEL = "@pdfbazam"  # Kitoblar turgan kanal
+ARCHIVE_CHANNEL = "@pdfbazam"  # Kitoblar zaxira kanali
 ADMIN_USERNAMES = ["irifq", "meyaq"]
 
 # Railway Volume papkasi
@@ -88,18 +88,17 @@ async def start_handler(message: types.Message):
     else:
         await show_main_menu(message)
 
-# --- BAZANI YUKLAB OLISH (/backup) - FAQAT ADMINLAR UCHUN ---
+# --- BAZANI YUKLAB OLISH (/backup) ---
 @dp.message(Command("backup"))
 async def backup_handler(message: types.Message):
     username = message.from_user.username
     if not username or username.lower() not in ADMIN_USERNAMES:
         return
-    
     try:
         if os.path.exists(BOOKS_FILE):
             await message.answer_document(
                 document=types.FSInputFile(BOOKS_FILE),
-                caption="📦 <b>Mana sizning baza (books.json) faylingiz!</b>\nUni saqlab qo'ying.",
+                caption="📦 <b>Mana sizning baza (books.json) faylingiz!</b>",
                 parse_mode="HTML"
             )
         else:
@@ -115,44 +114,6 @@ async def stat_handler(message: types.Message):
     total_users = len(users_db)
     total_books = len(books_db)
     await message.answer(f"📊 <b>Statistika:</b>\n\nFoydalanuvchilar: <b>{total_users}</b> ta\nKitoblar bazasi: <b>{total_books}</b> ta", parse_mode="HTML")
-
-@dp.message(Command("sync"))
-async def sync_channel_books(message: types.Message):
-    username = message.from_user.username
-    if not username or username.lower() not in ADMIN_USERNAMES:
-        return
-    
-    msg = await message.answer("🔄 Kanal skaner qilinmoqda, iltimos kuting...")
-    try:
-        global books_db
-        synced_count = 0
-        async for history_msg in bot.get_chat_history(chat_id=ARCHIVE_CHANNEL, limit=200):
-            if history_msg.document:
-                file_id = history_msg.document.file_id
-                caption = history_msg.caption
-                if caption:
-                    clean_title = caption.replace("📖", "").replace("(PDF)", "").strip()
-                else:
-                    file_name = history_msg.document.file_name or "Noma'lum kitob"
-                    clean_title = file_name[:-4] if file_name.endswith(".pdf") else file_name
-                clean_title = clean_title.replace("_", " ").replace("-", " ")
-                
-                if not any(b["file_id"] == file_id for b in books_db):
-                    new_id = max([b["id"] for b in books_db], default=0) + 1
-                    keywords = generate_keywords(clean_title)
-                    books_db.append({
-                        "id": new_id,
-                        "title": clean_title,
-                        "keywords": keywords,
-                        "file_id": file_id,
-                        "caption": f"📖 {clean_title} (PDF)"
-                    })
-                    synced_count += 1
-        
-        save_json(BOOKS_FILE, books_db)
-        await msg.edit_text(f"✅ <b>Sinxronizatsiya muvaffaqiyatli yakunlandi!</b>\n\nKanal这样做dan <b>{synced_count} ta</b> yangi kitob bazaga qo'shildi.\nJami kitoblar: <b>{len(books_db)} ta</b>", parse_mode="HTML")
-    except Exception as e:
-        await msg.edit_text(f"❌ Xatolik yuz berdi: <code>{e}</code>", parse_mode="HTML")
 
 @dp.message(Command("rename"))
 async def rename_book_handler(message: types.Message):
@@ -214,16 +175,31 @@ async def send_selected_book(callback: types.CallbackQuery):
     else:
         await callback.answer("Kechirasiz, kitob topilmadi.", show_alert=True)
 
+# --- HUJJAT YOKI KITOBLAR BAZASINI QABUL QILISH ---
 @dp.message(F.document)
-async def handle_new_pdf(message: types.Message, state: FSMContext):
+async def handle_documents(message: types.Message, state: FSMContext):
     username = message.from_user.username
     if not username or username.lower() not in ADMIN_USERNAMES:
-        await message.answer("❌ Kechirasiz, bu botga faqat adminlar kitob qo'shishi mumkin.")
+        await message.answer("❌ Kechirasiz, bu botga faqat adminlar fayl yuborishi mumkin.")
         return
+        
     document = message.document
-    if not document.file_name.lower().endswith(".pdf"):
-        await message.answer("⚠️ Iltimos, faqat PDF formatidagi fayl tashlang!")
+    file_name = document.file_name.lower()
+    
+    # Agar books.json fayli tashlansa, bazani tiklash
+    if file_name == "books.json":
+        file_info = await bot.get_file(document.file_id)
+        await bot.download(file_info, destination=BOOKS_FILE)
+        global books_db
+        books_db = load_json(BOOKS_FILE, [])
+        await message.answer(f"✅ <b>Baza muvaffaqiyatli yuklandi va yangilandi!</b>\n\nJami kitoblar: <b>{len(books_db)} ta</b>", parse_mode="HTML")
         return
+        
+    # PDF kitob tashlansa
+    if not file_name.endswith(".pdf"):
+        await message.answer("⚠️ Iltimos, faqat PDF formatidagi fayl yoki <code>books.json</code> yuboring!", parse_mode="HTML")
+        return
+        
     await state.update_data(file_id=document.file_id)
     await state.set_state(AdminBookState.waiting_for_caption)
     await message.answer("✍️ <b>Ushbu kitobning nomini (sarlavhasini) yozib yuboring:</b>", parse_mode="HTML")
