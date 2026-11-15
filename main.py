@@ -6,7 +6,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-TOKEN = "SIZNING_BOT_TOKENINGIZNI_SHU_YERGA_YOZING"
+TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"
 ADMIN_USERNAME = "irifq"  # @ belgisiz yoziladi
 BOOKS_FILE = "books.json"
