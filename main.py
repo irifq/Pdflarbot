@@ -6,14 +6,15 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
+# TODO: @BotFather'dan yangi olgan tokeningizni shu yerga yozasiz
+TOKEN = "YANGI_TOKENINGIZNI_SHU_YERGA_YOZING"
 CHANNEL_USERNAME = "@pdflar_muhokama"
 USERS_FILE = "users.json"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# --- FOYDALANUVCHILAR BAZASINI BOSHQARISH FUNKSIYALARI ---
+# --- FOYDALANUVCHILAR BAZASINI BOSHQARISH ---
 def load_users():
     if os.path.exists(USERS_FILE):
         try:
@@ -32,7 +33,7 @@ def save_users(users_data):
 
 users_db = load_users()
 
-# To'plangan barcha 55 ta kitob bazasi
+# Barcha 55 ta kitob bazasi
 BOOKS = [
     {
         "id": 1,
@@ -219,7 +220,7 @@ BOOKS = [
     {
         "id": 27,
         "title": "O'gay ona — Ahmad Lutfiy",
-        "keywords": ["ogay ona", "o'gay ona", "ahmad lutfiy", "огай она"],
+        "keywords": ["ogay ona", "o'gay ona", "ahmad lutfiy", "огай ona"],
         "file_id": "BQACAgIAAxkBAAIIHWr4pip2xJoCCV4QdSzJPOoX7LnoAAI4AgACzpyASPrT8iY5lQABZj0E",
         "caption": "📖 O'gay ona — Ahmad Lutfiy (PDF)"
     },
@@ -544,6 +545,9 @@ async def search_book_handler(message: types.Message):
 
 async def main():
     logging.basicConfig(level=logging.INFO)
-    # Eski webhook'ni tozalash uchun shu qatorni qo'shamiz:
+    # Eski webhook bor bo'lsa, uni tozalab tashlaydi va xatolikning oldini oladi
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
