@@ -100,7 +100,7 @@ async def backup_handler(message: types.Message):
         if os.path.exists(BOOKS_FILE):
             await message.answer_document(
                 document=types.FSInputFile(BOOKS_FILE),
-                caption="📦 <b>Mana sizning bazangiz (`books.json`)!</b>\nXavfsiz saqlab qo'ying.",
+                caption="📦 <b>Mana sizning bazangiz (`books.json`)!</b>",
                 parse_mode="HTML"
             )
         else:
@@ -214,6 +214,12 @@ async def handle_documents(message: types.Message, state: FSMContext):
         await message.answer("⚠️ Iltimos, faqat PDF formatidagi fayl yoki <code>books.json</code> yuboring!", parse_mode="HTML")
         return
         
+    # Xuddi shu file_id oldin qo'shilganmi tekshiramiz (takrorlanishning oldini olish uchun)
+    existing_book = next((b for b in books_db if b["file_id"] == document.file_id), None)
+    if existing_book:
+        await message.answer(f"⚠️ <b>Bu PDF allaqachon bazada mavjud!</b>\n\nNomi: {existing_book['title']} (ID: {existing_book['id']})", parse_mode="HTML")
+        return
+
     await state.update_data(file_id=document.file_id)
     await state.set_state(AdminBookState.waiting_for_caption)
     await message.answer("✍️ <b>Ushbu kitob uchun chiroyli nom (sarlavha) yozib yuboring:</b>", parse_mode="HTML")
@@ -224,6 +230,8 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
     data = await state.get_data()
     file_id = data.get("file_id")
     
+    global books_db
+    # ID raqamlarini har doim 1 dan boshlab tartib bilan (1, 2, 3...) qat'iy hisoblaymiz
     if books_db:
         new_id = max([b.get("id", 0) for b in books_db]) + 1
     else:
@@ -244,7 +252,8 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
     success_text = (
         "✅ <b>Kitob bazaga qo'shildi!</b>\n\n"
         f"📚 Nomi: <b>{book_title}</b>\n"
-        f"🆔 ID raqami: <b>{new_id}</b>"
+        f"🆔 ID raqami: <b>{new_id}</b>\n"
+        f"📊 Jami kitoblar: <b>{len(books_db)} ta</b>"
     )
     await message.answer(success_text, parse_mode="HTML")
 
@@ -281,7 +290,6 @@ async def search_book_handler(message: types.Message):
         for book in books_db:
             title_lower = book["title"].lower()
             title_cyr = transliterate(title_lower)
-            # Kengaytirilgan qidiruv: ham to'liq nom, ham kalit so'zlar, ham translit tekshiriladi
             if (query in title_lower or query_cyr in title_cyr or 
                 any(query in kw or query_cyr in transliterate(kw) for kw in book.get("keywords", []))):
                 if book not in matched_books:
@@ -319,7 +327,7 @@ async def search_book_handler(message: types.Message):
 
 async def main():
     logging.basicConfig(level=logging.INFO)
-    await bot.get_updates(offset=-1) # Eski pending xabarlarni tozalash uchun
+    await bot.get_updates(offset=-1)
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
