@@ -5,15 +5,21 @@ import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 
 TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"
+ARCHIVE_CHANNEL = "@pdfbazam"  # Kitoblar saqlanadigan kanal
 ADMIN_USERNAMES = ["irifq", "meyaq"]
 BOOKS_FILE = "books.json"
 USERS_FILE = "users.json"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
+
+class AdminBookState(StatesGroup):
+    waiting_for_caption = State()
 
 def load_json(filename, default_value):
     if os.path.exists(filename):
@@ -33,6 +39,7 @@ def save_json(filename, data):
 
 users_db = load_json(USERS_FILE, {})
 
+# Eski 56 ta kitob bazasi (sync qilish uchun vaqtincha turadi)
 INITIAL_BOOKS = [
     {
         "id": 1,
@@ -496,11 +503,38 @@ async def start_handler(message: types.Message):
 async def stat_handler(message: types.Message):
     username = message.from_user.username
     if not username or username.lower() not in ADMIN_USERNAMES:
-        return  # Agar admin bo'lmasa, umuman javob bermaydi
+        return
     
     total_users = len(users_db)
     total_books = len(books_db)
     await message.answer(f"📊 <b>Statistika:</b>\n\nFoydalanuvchilar: <b>{total_users}</b> ta\nKitoblar bazasi: <b>{total_books}</b> ta", parse_mode="HTML")
+
+# --- KANALGA HAMMASINI AVTOMATIK ZAXiralash uchun /sync BUYRUQI ---
+@dp.message(Command("sync"))
+async def sync_books_to_channel(message: types.Message):
+    username = message.from_user.username
+    if not username or username.lower() not in ADMIN_USERNAMES:
+        return
+    
+    await message.answer("🔄 Bazadagi barcha kitoblar `@pdfbazam` kanaliga zaxiralanmoqda, kuting...")
+    
+    success_count = 0
+    for book in books_db:
+        try:
+            # Kanalga yuborib, file_id ni yangilab olamiz
+            sent = await bot.send_document(
+                chat_id=ARCHIVE_CHANNEL,
+                document=book["file_id"],
+                caption=book["caption"]
+            )
+            book["file_id"] = sent.document.file_id
+            success_count += 1
+            await asyncio.sleep(0.5) # Telegram limitiga tushmaslik uchun kichik tanaffus
+        except Exception as e:
+            logging.error(f"Kitobni zaxiralashda xatolik ({book['title']}): {e}")
+            
+    save_json(BOOKS_FILE, books_db)
+    await message.answer(f"✅ <b>Tayyor!</b> Jami <b>{success_count} ta</b> kitob `@pdfbazam` kanaliga muvaffaqiyatli zaxiralandi.")
 
 @dp.message(Command("rename"))
 async def rename_book_handler(message: types.Message):
@@ -565,10 +599,10 @@ async def send_selected_book(callback: types.CallbackQuery):
     else:
         await callback.answer("Kechirasiz, kitob topilmadi.", show_alert=True)
 
+# --- ADMIN PDF TASHLAGANDA CAPTION (NOM) SO'RASH JARAYONI ---
 @dp.message(F.document)
-async def handle_new_pdf(message: types.Message):
+async def handle_new_pdf(message: types.Message, state: FSMContext):
     username = message.from_user.username
-    
     if not username or username.lower() not in ADMIN_USERNAMES:
         await message.answer("❌ Kechirasiz, bu botga faqat adminlar kitob qo'shishi mumkin.")
         return
@@ -578,12 +612,30 @@ async def handle_new_pdf(message: types.Message):
         await message.answer("⚠️ Iltimos, faqat PDF formatidagi fayl tashlang!")
         return
     
-    file_id = document.file_id
+    await state.update_data(file_id=document.file_id)
+    await state.set_state(AdminBookState.waiting_for_caption)
     
-    if message.caption:
-        book_title = message.caption.strip()
-    else:
-        book_title = document.file_name[:-4].replace("_", " ").replace("-", " ")
+    await message.answer(
+        "✍️ <b>Ushbu kitobning nomini (sarlavhasini) yozib yuboring:</b>\n"
+        "(Masalan: <i>Men — Fotih Duman</i>)",
+        parse_mode="HTML"
+    )
+
+@dp.message(AdminBookState.waiting_for_caption, F.text)
+async def save_book_with_caption(message: types.Message, state: FSMContext):
+    book_title = message.text.strip()
+    data = await state.get_data()
+    file_id = data.get("file_id")
+    
+    try:
+        sent_msg = await bot.send_document(
+            chat_id=ARCHIVE_CHANNEL,
+            document=file_id,
+            caption=f"📖 {book_title} (PDF)"
+        )
+        file_id = sent_msg.document.file_id
+    except Exception as e:
+        logging.error(f"Kanalga yuborishda xatolik: {e}")
     
     new_id = max([b["id"] for b in books_db], default=0) + 1
     keywords = generate_keywords(book_title)
@@ -599,8 +651,10 @@ async def handle_new_pdf(message: types.Message):
     books_db.append(new_book)
     save_json(BOOKS_FILE, books_db)
     
+    await state.clear()
+    
     await message.answer(
-        f"✅ <b>Yangi kitob bazaga qo'shildi!</b>\n\n"
+        f"✅ <b>Kitob muvaffaqiyatli saqlandi va @pdfbazam kanaliga tashlandi!</b>\n\n"
         f"📚 Nomi: <b>{book_title}</b>\n"
         f"🆔 ID raqami: <b>{new_id}</b>\n"
         f"📂 Jami kitoblar: <b>{len(books_db)} ta</b>",
