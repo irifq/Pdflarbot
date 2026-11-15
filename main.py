@@ -7,7 +7,7 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 # TODO: @BotFather'dan yangi olgan tokeningizni shu yerga yozasiz
-TOKEN = "YANGI_TOKENINGIZNI_SHU_YERGA_YOZING"
+TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"
 USERS_FILE = "users.json"
 
