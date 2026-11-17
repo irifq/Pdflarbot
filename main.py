@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
-CHANNEL_USERNAME = "@pdflar_muhokama"
+CHANNEL_USERNAME = "@pdflar_muhokama"  # Faqat shu kanal tekshiriladi!
 ADMIN_USERNAMES = ["irifq", "meyaq"]
 
 os.makedirs("/app/data", exist_ok=True)
@@ -87,7 +87,6 @@ async def start_handler(message: types.Message):
     else:
         await show_main_menu(message)
 
-# --- BAZANI YUKLAB OLISH (/backup) - FAQAT ADMIN ---
 @dp.message(Command("backup"))
 async def backup_handler(message: types.Message):
     username = message.from_user.username
@@ -105,7 +104,6 @@ async def backup_handler(message: types.Message):
     except Exception as e:
         await message.answer(f"❌ Xatolik yuz berdi: {e}")
 
-# --- STATISTIKA (/stat) - FAQAT ADMIN ---
 @dp.message(Command("stat"))
 async def stat_handler(message: types.Message):
     username = message.from_user.username
@@ -113,18 +111,15 @@ async def stat_handler(message: types.Message):
         return
     users_db = load_json(USERS_FILE, {})
     books_db = load_json(BOOKS_FILE, [])
-    total_users = len(users_db)
-    total_books = len(books_db)
     
     stat_text = (
         "📊 <b>Bot Statistikasi:</b>\n\n"
-        f"👥 Foydalanuvchilar: <b>{total_users}</b> ta\n"
-        f"📚 Kitoblar bazasi: <b>{total_books}</b> ta\n\n"
+        f"👥 Foydalanuvchilar: <b>{len(users_db)}</b> ta\n"
+        f"📚 Kitoblar bazasi: <b>{len(books_db)}</b> ta\n\n"
         "📥 Bot: @Pdflarbot"
     )
     await message.answer(stat_text, parse_mode="HTML")
 
-# --- KITOBLAR NOMINI O'ZGARTIRISH (/rename) - FAQAT ADMIN ---
 @dp.message(Command("rename"))
 async def rename_book_handler(message: types.Message):
     username = message.from_user.username
@@ -202,7 +197,6 @@ async def send_selected_book(callback: types.CallbackQuery):
     else:
         await callback.answer("❌ Kechirasiz, bu kitob topilmadi.", show_alert=True)
 
-# --- PDF FAYL QABUL QILISH ---
 @dp.message(F.document)
 async def handle_documents(message: types.Message, state: FSMContext):
     username = message.from_user.username
@@ -246,11 +240,7 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
         return
 
     books_db = load_json(BOOKS_FILE, [])
-    if books_db:
-        max_id = max([b.get("id", 0) for b in books_db])
-        new_id = max_id + 1
-    else:
-        new_id = 1
+    new_id = (max([b.get("id", 0) for b in books_db]) + 1) if books_db else 1
 
     keywords = generate_keywords(book_title)
     formatted_caption = f"📖 <b>{book_title}</b>\n\n📥 Bot: @Pdflarbot"
@@ -274,7 +264,6 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
     )
     await message.answer(success_text, parse_mode="HTML")
 
-# --- QIDIRUV ---
 @dp.message(F.text)
 async def search_book_handler(message: types.Message):
     user_id = message.from_user.id
@@ -322,10 +311,10 @@ async def search_book_handler(message: types.Message):
         
         for i, book in enumerate(display_books, 1):
             if is_admin:
-                response_text += f"<b>{i}.</b> 📖 {book['title']}  <code>[ID: {book['id']}]</code>\n"
+                response_text += f"<b>{i}.</b> <b>{book['title']}</b>  <code>[ID: {book['id']}]</code>\n"
                 btn_text = f"📥 #{book['id']} — {book['title'][:25]}"
             else:
-                response_text += f"<b>{i}.</b> 📖 {book['title']}\n"
+                response_text += f"<b>{i}.</b> <b>{book['title']}</b>\n"
                 btn_text = f"📥 {book['title'][:30]}"
 
             if len(btn_text) > 35:
