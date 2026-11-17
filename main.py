@@ -9,12 +9,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 TOKEN = "6711555669:AAHLcBqyHP9PBbN0Tg6wZ8HBCmoF2jK2eA4"
-CHANNEL_USERNAME = "@pdflar_muhokama"  # Faqat shu kanal tekshiriladi!
+CHANNEL_USERNAME = "@pdflar_muhokama"
 ADMIN_USERNAMES = ["irifq", "meyaq"]
 
 os.makedirs("/app/data", exist_ok=True)
 BOOKS_FILE = "/app/data/books.json"
 USERS_FILE = "/app/data/users.json"
+HISTORY_FILE = "/app/data/history.json"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -68,7 +69,8 @@ async def start_handler(message: types.Message):
     users_db = load_json(USERS_FILE, {})
     users_db[str(user_id)] = {
         "name": message.from_user.full_name,
-        "username": message.from_user.username
+        "username": message.from_user.username,
+        "id": user_id
     }
     save_json(USERS_FILE, users_db)
     
@@ -86,6 +88,116 @@ async def start_handler(message: types.Message):
         await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     else:
         await show_main_menu(message)
+
+# --- ADMIN: /users (Foydalanuvchilar ro'yxati) ---
+@dp.message(Command("users"))
+async def users_list_handler(message: types.Message):
+    username = message.from_user.username
+    if not username or username.lower() not in ADMIN_USERNAMES:
+        return
+    
+    users_db = load_json(USERS_FILE, {})
+    if not users_db:
+        await message.answer("👥 Hozircha foydalanuvchilar yo'q.")
+        return
+
+    text = "👥 <b>Foydalanuvchilar ro'yxati:</b>\n━━━━━━━━━━━━━━━━━━━━━\n\n"
+    for i, (uid, udata) in enumerate(users_db.items(), 1):
+        name = udata.get("name", "Noma'lum")
+        uname = f"@{udata.get('username')}" if udata.get("username") else "Username yo'q"
+        text += f"<b>{i}.</b> {name} ({uname}) — <code>ID: {uid}</code>\n"
+        
+        if len(text) > 3500:
+            await message.answer(text, parse_mode="HTML")
+            text = ""
+            
+    if text:
+        await message.answer(text, parse_mode="HTML")
+
+# --- ADMIN: /view [raqam] (Hamma yozganlarini .txt fayl qilib yuborish) ---
+@dp.message(Command("view"))
+async def view_user_history(message: types.Message):
+    username = message.from_user.username
+    if not username or username.lower() not in ADMIN_USERNAMES:
+        return
+        
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].isdigit():
+        await message.answer("⚠️ <b>Xato format!</b>\nIshlatish: <code>/view [raqam]</code> (Masalan: <code>/view 1</code>)", parse_mode="HTML")
+        return
+        
+    index = int(parts[1]) - 1
+    users_db = load_json(USERS_FILE, {})
+    user_items = list(users_db.items())
+    
+    if index < 0 or index >= len(user_items):
+        await message.answer("❌ Bunday raqamli foydalanuvchi topilmadi!")
+        return
+        
+    uid, udata = user_items[index]
+    history_db = load_json(HISTORY_FILE, {})
+    user_queries = history_db.get(str(uid), [])
+    
+    name = udata.get("name", "Noma'lum")
+    uname = f"@{udata.get('username')}" if udata.get("username") else "Yo'q"
+    
+    # Text fayl mazmunini tayyorlash
+    file_content = f"Foydalanuvchi: {name}\nUsername: {uname}\nTelegram ID: {uid}\n----------------------------------------\n\nBarcha yozgan xabarlari va qidiruvlari:\n"
+    if user_queries:
+        for idx, q in enumerate(user_queries, 1):
+            file_content += f"{idx}. {q}\n"
+    else:
+        file_content += "Hozircha hech narsa yozmagan.\n"
+        
+    file_path = f"/app/data/user_{uid}_history.txt"
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(file_content)
+        
+    caption = f"👤 <b>Foydalanuvchi #{index + 1}:</b> {name} ({uname})\n🆔 ID: <code>{uid}</code>\n\n📄 Barcha yozgan xabarlari tarixi shartli faylga yozildi:"
+    await message.answer_document(
+        document=types.FSInputFile(file_path),
+        caption=caption,
+        parse_mode="HTML"
+    )
+
+# --- ADMIN: /text [raqam] [xabar] (Odamga xabar yuborish va profil havolasi) ---
+@dp.message(Command("text"))
+async def send_text_to_user(message: types.Message):
+    username = message.from_user.username
+    if not username or username.lower() not in ADMIN_USERNAMES:
+        return
+        
+    parts = message.text.split(maxsplit=2)
+    if len(parts) < 3 or not parts[1].isdigit():
+        await message.answer("⚠️ <b>Xato format!</b>\nIshlatish: <code>/text [raqam] [xabar]</code>\nMasalan: <code>/text 1 Salom, kitobingiz tayyor!</code>", parse_mode="HTML")
+        return
+        
+    index = int(parts[1]) - 1
+    text_to_send = parts[2]
+    
+    users_db = load_json(USERS_FILE, {})
+    user_items = list(users_db.items())
+    
+    if index < 0 or index >= len(user_items):
+        await message.answer("❌ Bunday raqamli foydalanuvchi topilmadi!")
+        return
+        
+    uid, udata = user_items[index]
+    name = udata.get("name", "Foydalanuvchi")
+    
+    try:
+        await bot.send_message(chat_id=int(uid), text=f"💬 <b>Admin xabari:</b>\n\n{text_to_send}", parse_mode="HTML")
+        profile_link = f"<a href='tg://user?id={uid}'>{name} profili</a>"
+        
+        await message.answer(
+            f"✅ <b>Xabar muvaffaqiyatli yuborildi!</b>\n\n"
+            f"👤 Qabul qiluvchi: {name}\n"
+            f"🔗 Profilga kirish: {profile_link}",
+            parse_mode="HTML",
+            disable_web_page_preview=True
+        )
+    except Exception as e:
+        await message.answer(f"❌ Xabar yuborib bo'lmadi (foydalanuvchi botni bloklagan bo'lishi mumkin): {e}")
 
 @dp.message(Command("backup"))
 async def backup_handler(message: types.Message):
@@ -271,12 +383,19 @@ async def search_book_handler(message: types.Message):
     is_admin = username and username.lower() in ADMIN_USERNAMES
 
     users_db = load_json(USERS_FILE, {})
-    if str(user_id) not in users_db:
-        users_db[str(user_id)] = {
-            "name": message.from_user.full_name,
-            "username": username
-        }
-        save_json(USERS_FILE, users_db)
+    users_db[str(user_id)] = {
+        "name": message.from_user.full_name,
+        "username": username,
+        "id": user_id
+    }
+    save_json(USERS_FILE, users_db)
+
+    # Foydalanuvchining har bir yozgan xabarini tarixga qo'shib boramiz
+    history_db = load_json(HISTORY_FILE, {})
+    if str(user_id) not in history_db:
+        history_db[str(user_id)] = []
+    history_db[str(user_id)].append(message.text.strip())
+    save_json(HISTORY_FILE, history_db)
     
     if not await check_subscription(user_id):
         await start_handler(message)
