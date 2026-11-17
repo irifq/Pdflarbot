@@ -8,7 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
+TOKEN = "6711555669:AAHLcBqyHP9PBbN0Tg6wZ8HBCmoF2jK2eA4"
 CHANNEL_USERNAME = "@pdflar_muhokama"
 ADMIN_USERNAMES = ["irifq", "meyaq"]
 
