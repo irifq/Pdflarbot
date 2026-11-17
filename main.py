@@ -114,7 +114,7 @@ async def users_list_handler(message: types.Message):
     if text:
         await message.answer(text, parse_mode="HTML")
 
-# --- ADMIN: /view [raqam] (Hamma yozganlarini .txt fayl qilib yuborish) ---
+# --- ADMIN: /view [raqam] (Hamma yozganlarini chatda ko'rsatish) ---
 @dp.message(Command("view"))
 async def view_user_history(message: types.Message):
     username = message.from_user.username
@@ -140,27 +140,24 @@ async def view_user_history(message: types.Message):
     
     name = udata.get("name", "Noma'lum")
     uname = f"@{udata.get('username')}" if udata.get("username") else "Yo'q"
+    profile_link = f"<a href='tg://user?id={uid}'>{name} profili</a>"
     
-    # Text fayl mazmunini tayyorlash
-    file_content = f"Foydalanuvchi: {name}\nUsername: {uname}\nTelegram ID: {uid}\n----------------------------------------\n\nBarcha yozgan xabarlari va qidiruvlari:\n"
+    text = f"👤 <b>Foydalanuvchi #{index + 1}:</b> {name} ({uname})\n🆔 ID: <code>{uid}</code>\n🔗 Profil: {profile_link}\n\n💬 <b>Hamma yozganlari tarixi:</b>\n"
+    
     if user_queries:
         for idx, q in enumerate(user_queries, 1):
-            file_content += f"{idx}. {q}\n"
+            text += f"<b>{idx}.</b> {q}\n"
     else:
-        file_content += "Hozircha hech narsa yozmagan.\n"
+        text += "<i>Hozircha hech narsa yozmagan.</i>"
         
-    file_path = f"/app/data/user_{uid}_history.txt"
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(file_content)
-        
-    caption = f"👤 <b>Foydalanuvchi #{index + 1}:</b> {name} ({uname})\n🆔 ID: <code>{uid}</code>\n\n📄 Barcha yozgan xabarlari tarixi shartli faylga yozildi:"
-    await message.answer_document(
-        document=types.FSInputFile(file_path),
-        caption=caption,
-        parse_mode="HTML"
-    )
+    # Agar matn juda uzun bo'lsa, qismlarga bo'lib yuboramiz
+    if len(text) > 4000:
+        for x in range(0, len(text), 4000):
+            await message.answer(text[x:x+4000], parse_mode="HTML", disable_web_page_preview=True)
+    else:
+        await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
 
-# --- ADMIN: /text [raqam] [xabar] (Odamga xabar yuborish va profil havolasi) ---
+# --- ADMIN: /text [raqam] [xabar] (Odamga xabar yuborish) ---
 @dp.message(Command("text"))
 async def send_text_to_user(message: types.Message):
     username = message.from_user.username
@@ -382,6 +379,7 @@ async def search_book_handler(message: types.Message):
     username = message.from_user.username
     is_admin = username and username.lower() in ADMIN_USERNAMES
 
+    # Foydalanuvchini bazaga qo'shish
     users_db = load_json(USERS_FILE, {})
     users_db[str(user_id)] = {
         "name": message.from_user.full_name,
@@ -390,20 +388,47 @@ async def search_book_handler(message: types.Message):
     }
     save_json(USERS_FILE, users_db)
 
-    # Foydalanuvchining har bir yozgan xabarini tarixga qo'shib boramiz
+    user_text = message.text.strip()
+
+    # Tarixga saqlash
     history_db = load_json(HISTORY_FILE, {})
     if str(user_id) not in history_db:
         history_db[str(user_id)] = []
-    history_db[str(user_id)].append(message.text.strip())
+    history_db[str(user_id)].append(user_text)
     save_json(HISTORY_FILE, history_db)
-    
+
+    # --- AGAR FOYDALANUVCHI BO'LSA, ADMINLARGA AVTO XABAR YUBORISH ---
+    if not is_admin:
+        name = message.from_user.full_name
+        uname = f"@{username}" if username else "Username yo'q"
+        profile_link = f"<a href='tg://user?id={user_id}'>{name} profili</a>"
+        
+        # Barcha adminlarga xabar yuboramiz
+        for admin_uname in ADMIN_USERNAMES:
+            # Adminning username orqali ID sini topish qiyin bo'lgani uchun,
+            # history yoki users_db da adminning user_id sini qidiramiz yoki to'g'ridan-to'g'ri yuboramiz:
+            pass # (Pastda qulay usuli qilingan)
+        
+        # Adminlarga xabar borishi uchun users_db ichidan adminlarni qidirib topib yuboramiz:
+        for uid, udata in users_db.items():
+            if udata.get("username", "").lower() in ADMIN_USERNAMES:
+                try:
+                    admin_notify_text = (
+                        f"🔔 <b>Yangi xabar keldi!</b>\n\n"
+                        f"👤 Kimdan: {profile_link} ({uname})\n"
+                        f"🆔 ID: <code>{user_id}</code>\n"
+                        f"💬 Yozgani: <b>{user_text}</b>"
+                    )
+                    await bot.send_message(chat_id=int(uid), text=admin_notify_text, parse_mode="HTML", disable_web_page_preview=True)
+                except Exception:
+                    pass
+
     if not await check_subscription(user_id):
         await start_handler(message)
         return
     
     books_db = load_json(BOOKS_FILE, [])
-    raw_query = message.text.strip()
-    query = raw_query.lower()
+    query = user_text.lower()
     matched_books = []
 
     clean_query = query.replace("/id", "").replace("id", "").strip()
