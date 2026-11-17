@@ -17,6 +17,18 @@ BOOKS_FILE = "/app/data/books.json"
 USERS_FILE = "/app/data/users.json"
 HISTORY_FILE = "/app/data/history.json"
 
+if not os.path.exists(BOOKS_FILE):
+    with open(BOOKS_FILE, "w", encoding="utf-8") as f:
+        json.dump([], f, ensure_ascii=False, indent=4)
+
+if not os.path.exists(USERS_FILE):
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump({}, f, ensure_ascii=False, indent=4)
+
+if not os.path.exists(HISTORY_FILE):
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump({}, f, ensure_ascii=False, indent=4)
+
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
@@ -89,7 +101,6 @@ async def start_handler(message: types.Message):
     else:
         await show_main_menu(message)
 
-# --- ADMIN: /users (Foydalanuvchilar ro'yxati) ---
 @dp.message(Command("users"))
 async def users_list_handler(message: types.Message):
     username = message.from_user.username
@@ -114,7 +125,6 @@ async def users_list_handler(message: types.Message):
     if text:
         await message.answer(text, parse_mode="HTML")
 
-# --- ADMIN: /view [raqam] (Hamma yozganlarini chatda ko'rsatish) ---
 @dp.message(Command("view"))
 async def view_user_history(message: types.Message):
     username = message.from_user.username
@@ -150,14 +160,12 @@ async def view_user_history(message: types.Message):
     else:
         text += "<i>Hozircha hech narsa yozmagan.</i>"
         
-    # Agar matn juda uzun bo'lsa, qismlarga bo'lib yuboramiz
     if len(text) > 4000:
         for x in range(0, len(text), 4000):
             await message.answer(text[x:x+4000], parse_mode="HTML", disable_web_page_preview=True)
     else:
         await message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
 
-# --- ADMIN: /text [raqam] [xabar] (Odamga xabar yuborish) ---
 @dp.message(Command("text"))
 async def send_text_to_user(message: types.Message):
     username = message.from_user.username
@@ -194,7 +202,7 @@ async def send_text_to_user(message: types.Message):
             disable_web_page_preview=True
         )
     except Exception as e:
-        await message.answer(f"❌ Xabar yuborib bo'lmadi (foydalanuvchi botni bloklagan bo'lishi mumkin): {e}")
+        await message.answer(f"❌ Xabar yuborib bo'lmadi: {e}")
 
 @dp.message(Command("backup"))
 async def backup_handler(message: types.Message):
@@ -379,7 +387,6 @@ async def search_book_handler(message: types.Message):
     username = message.from_user.username
     is_admin = username and username.lower() in ADMIN_USERNAMES
 
-    # Foydalanuvchini bazaga qo'shish
     users_db = load_json(USERS_FILE, {})
     users_db[str(user_id)] = {
         "name": message.from_user.full_name,
@@ -390,38 +397,11 @@ async def search_book_handler(message: types.Message):
 
     user_text = message.text.strip()
 
-    # Tarixga saqlash
     history_db = load_json(HISTORY_FILE, {})
     if str(user_id) not in history_db:
         history_db[str(user_id)] = []
     history_db[str(user_id)].append(user_text)
     save_json(HISTORY_FILE, history_db)
-
-    # --- AGAR FOYDALANUVCHI BO'LSA, ADMINLARGA AVTO XABAR YUBORISH ---
-    if not is_admin:
-        name = message.from_user.full_name
-        uname = f"@{username}" if username else "Username yo'q"
-        profile_link = f"<a href='tg://user?id={user_id}'>{name} profili</a>"
-        
-        # Barcha adminlarga xabar yuboramiz
-        for admin_uname in ADMIN_USERNAMES:
-            # Adminning username orqali ID sini topish qiyin bo'lgani uchun,
-            # history yoki users_db da adminning user_id sini qidiramiz yoki to'g'ridan-to'g'ri yuboramiz:
-            pass # (Pastda qulay usuli qilingan)
-        
-        # Adminlarga xabar borishi uchun users_db ichidan adminlarni qidirib topib yuboramiz:
-        for uid, udata in users_db.items():
-            if udata.get("username", "").lower() in ADMIN_USERNAMES:
-                try:
-                    admin_notify_text = (
-                        f"🔔 <b>Yangi xabar keldi!</b>\n\n"
-                        f"👤 Kimdan: {profile_link} ({uname})\n"
-                        f"🆔 ID: <code>{user_id}</code>\n"
-                        f"💬 Yozgani: <b>{user_text}</b>"
-                    )
-                    await bot.send_message(chat_id=int(uid), text=admin_notify_text, parse_mode="HTML", disable_web_page_preview=True)
-                except Exception:
-                    pass
 
     if not await check_subscription(user_id):
         await start_handler(message)
