@@ -100,6 +100,38 @@ async def start_handler(message: types.Message):
         await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     else:
         await show_main_menu(message)
+@dp.message(Command("rename"))
+async def rename_book_handler(message: types.Message):
+    # ... rename kodi ...
+    pass
+
+# <--- Mana SHU YERGA (rename va boshqa buyruqlar orasiga) tashlaysiz:
+@dp.message(Command("delete"))
+async def delete_book_handler(message: types.Message):
+    username = message.from_user.username
+    if not username or username.lower() not in ADMIN_USERNAMES:
+        return
+        
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].isdigit():
+        await message.answer("⚠️ <b>Xato format!</b>\nIshlatish: <code>/delete [ID]</code> (Masalan: <code>/delete 5</code>)", parse_mode="HTML")
+        return
+        
+    book_id = int(parts[1])
+    books_db = load_json(BOOKS_FILE, [])
+    
+    initial_count = len(books_db)
+    books_db = [b for b in books_db if b["id"] != book_id]
+    
+    if len(books_db) < initial_count:
+        save_json(BOOKS_FILE, books_db)
+        await message.answer(f"✅ <b>{book_id}-ID</b> raqamli kitob bazadan muvaffaqiyatli o'chirildi!", parse_mode="HTML")
+    else:
+        await message.answer(f"❌ <b>{book_id}-ID</b> raqamli kitob topilmadi!", parse_mode="HTML")
+
+@dp.message(Command("stat"))
+async def stat_handler(message: types.Message):
+    # ... qolgan buyruqlar ...
 
 @dp.message(Command("users"))
 async def users_list_handler(message: types.Message):
