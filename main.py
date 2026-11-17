@@ -8,7 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-TOKEN = "6711555669:AAHLcBqyHP9PBbN0Tg6wZ8HBCmoF2jK2eA4"
+TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"
 ADMIN_USERNAMES = ["irifq", "meyaq"]
 
@@ -100,36 +100,6 @@ async def start_handler(message: types.Message):
         await message.answer(text, reply_markup=builder.as_markup(), parse_mode="HTML")
     else:
         await show_main_menu(message)
-@dp.message(Command("rename"))
-async def rename_book_handler(message: types.Message):
-    # ... rename kodi ...
-    pass
-
-# <--- Mana SHU YERGA (rename va boshqa buyruqlar orasiga) tashlaysiz:
-@dp.message(Command("delete"))
-async def delete_book_handler(message: types.Message):
-    username = message.from_user.username
-    if not username or username.lower() not in ADMIN_USERNAMES:
-        return
-          parts = message.text.split(maxsplit=1)
-    if len(parts) < 2 or not parts[1].isdigit():
-        await message.answer("⚠️ <b>Xato format!</b>\nIshlatish: <code>/delete [ID]</code> (Masalan: <code>/delete 5</code>)", parse_mode="HTML")
-        return
-        
-    book_id = int(parts[1])
-    books_db = load_json(BOOKS_FILE, [])
-    
-    initial_count = len(books_db)
-    books_db = [b for b in books_db if b["id"] != book_id]
-    
-    if len(books_db) < initial_count:
-        save_json(BOOKS_FILE, books_db)
-        await message.answer(f"✅ <b>{book_id}-ID</b> raqamli kitob bazadan muvaffaqiyatli o'chirildi!", parse_mode="HTML")
-    else:
-        await message.answer(f"❌ <b>{book_id}-ID</b> raqamli kitob topilmadi!", parse_mode="HTML")
-@dp.message(Command("stat"))
-async def stat_handler(message: types.Message):
-    # ... qolgan buyruqlar ...
 
 @dp.message(Command("users"))
 async def users_list_handler(message: types.Message):
@@ -233,6 +203,29 @@ async def send_text_to_user(message: types.Message):
         )
     except Exception as e:
         await message.answer(f"❌ Xabar yuborib bo'lmadi: {e}")
+
+@dp.message(Command("delete"))
+async def delete_book_handler(message: types.Message):
+    username = message.from_user.username
+    if not username or username.lower() not in ADMIN_USERNAMES:
+        return
+        
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].isdigit():
+        await message.answer("⚠️ <b>Xato format!</b>\nIshlatish: <code>/delete [ID]</code> (Masalan: <code>/delete 5</code>)", parse_mode="HTML")
+        return
+        
+    book_id = int(parts[1])
+    books_db = load_json(BOOKS_FILE, [])
+    
+    initial_count = len(books_db)
+    books_db = [b for b in books_db if b["id"] != book_id]
+    
+    if len(books_db) < initial_count:
+        save_json(BOOKS_FILE, books_db)
+        await message.answer(f"✅ <b>{book_id}-ID</b> raqamli kitob bazadan muvaffaqiyatli o'chirildi!", parse_mode="HTML")
+    else:
+        await message.answer(f"❌ <b>{book_id}-ID</b> raqamli kitob topilmadi!", parse_mode="HTML")
 
 @dp.message(Command("backup"))
 async def backup_handler(message: types.Message):
@@ -388,7 +381,6 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
 
     books_db = load_json(BOOKS_FILE, [])
     
-    # ANIQ VA XATOSIZ ID GENERATSIYA QILISH:
     if books_db:
         max_id = max([int(b.get("id", 0)) for b in books_db if str(b.get("id", 0)).isdigit()])
         new_id = max_id + 1
@@ -443,62 +435,4 @@ async def search_book_handler(message: types.Message):
         await start_handler(message)
         return
     
-    books_db = load_json(BOOKS_FILE, [])
-    query = user_text.lower()
-    matched_books = []
-
-    clean_query = query.replace("/id", "").replace("id", "").strip()
     
-    if is_admin and clean_query.isdigit():
-        target_id = int(clean_query)
-        book = next((b for b in books_db if b["id"] == target_id), None)
-        if book:
-            matched_books = [book]
-    else:
-        query_cyr = transliterate(query)
-        for book in books_db:
-            title_lower = book["title"].lower()
-            title_cyr = transliterate(title_lower)
-            if (query in title_lower or query_cyr in title_cyr or 
-                any(query in kw or query_cyr in transliterate(kw) for kw in book.get("keywords", []))):
-                if book not in matched_books:
-                    matched_books.append(book)
-    
-    if matched_books:
-        response_text = f"📚 <b>Topilgan kitoblar:</b> <code>{len(matched_books)} ta</code>\n━━━━━━━━━━━━━━━━━━━━━\n\n"
-        builder = InlineKeyboardBuilder()
-        display_books = matched_books[:30]
-        
-        for i, book in enumerate(display_books, 1):
-            if is_admin:
-                response_text += f"<b>{i}.</b> <b>{book['title']}</b>  <code>[ID: {book['id']}]</code>\n"
-                btn_text = f"📥 #{book['id']} — {book['title'][:25]}"
-            else:
-                response_text += f"<b>{i}.</b> <b>{book['title']}</b>\n"
-                btn_text = f"📥 {book['title'][:30]}"
-
-            if len(btn_text) > 35:
-                btn_text = btn_text[:32] + "..."
-            
-            builder.button(text=btn_text, callback_data=f"get_book_{book['id']}")
-            
-        if len(matched_books) > 30:
-            response_text += f"\n<i>⚠️ Qolgan {len(matched_books) - 30} ta natija ko'rsatilmadi.</i>"
-            
-        builder.adjust(1)
-        await message.answer(response_text, reply_markup=builder.as_markup(), parse_mode="HTML")
-    else:
-        not_found_text = (
-            "🔍 <b>Hech qanday kitob topilmadi</b>\n\n"
-            "<i>Iltimos, qidiruv so'zini o'zgartirib yoki qisqartirib yozib ko'ring.</i>"
-        )
-        await message.answer(not_found_text, parse_mode="HTML")
-
-async def main():
-    logging.basicConfig(level=logging.INFO)
-    await bot.get_updates(offset=-1)
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
