@@ -111,8 +111,7 @@ async def delete_book_handler(message: types.Message):
     username = message.from_user.username
     if not username or username.lower() not in ADMIN_USERNAMES:
         return
-        
-    parts = message.text.split(maxsplit=1)
+          parts = message.text.split(maxsplit=1)
     if len(parts) < 2 or not parts[1].isdigit():
         await message.answer("⚠️ <b>Xato format!</b>\nIshlatish: <code>/delete [ID]</code> (Masalan: <code>/delete 5</code>)", parse_mode="HTML")
         return
@@ -128,7 +127,6 @@ async def delete_book_handler(message: types.Message):
         await message.answer(f"✅ <b>{book_id}-ID</b> raqamli kitob bazadan muvaffaqiyatli o'chirildi!", parse_mode="HTML")
     else:
         await message.answer(f"❌ <b>{book_id}-ID</b> raqamli kitob topilmadi!", parse_mode="HTML")
-
 @dp.message(Command("stat"))
 async def stat_handler(message: types.Message):
     # ... qolgan buyruqlar ...
