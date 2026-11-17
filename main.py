@@ -8,7 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
-TOKEN = "6711555669:AAHLcBqyHP9PBbN0Tg6wZ8HBCmoF2jK2eA4"
+TOKEN = "6711555669:AAEyZzSl_HX4qIJIkz7i0gc0g-HGmcoM8ps"
 CHANNEL_USERNAME = "@pdflar_muhokama"
 ADMIN_USERNAMES = ["irifq", "meyaq"]
 
@@ -357,7 +357,13 @@ async def save_book_with_caption(message: types.Message, state: FSMContext):
         return
 
     books_db = load_json(BOOKS_FILE, [])
-    new_id = (max([b.get("id", 0) for b in books_db]) + 1) if books_db else 1
+    
+    # ANIQ VA XATOSIZ ID GENERATSIYA QILISH:
+    if books_db:
+        max_id = max([int(b.get("id", 0)) for b in books_db if str(b.get("id", 0)).isdigit()])
+        new_id = max_id + 1
+    else:
+        new_id = 1
 
     keywords = generate_keywords(book_title)
     formatted_caption = f"📖 <b>{book_title}</b>\n\n📥 Bot: @Pdflarbot"
